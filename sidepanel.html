@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRouter AI Chat</title>
+    <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Header -->
+        <header class="chat-header">
+            <h1>OpenRouter AI Chat</h1>
+            <div class="header-controls">
+                <button id="clear-chat" title="Clear Chat">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 19L18 5M18 19L6 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <button id="settings-btn" title="Settings">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                        <path d="M12 6v6M12 14v6M6 12h6M14 12h6" stroke="currentColor" stroke-width="2" stroke-linecap="square"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Chat Messages Area -->
+        <div id="chat-messages" class="chat-messages"></div>
+
+        <!-- Input Area -->
+        <div class="chat-input-area">
+            <div class="input-controls">
+                <input type="file" id="file-attach" accept="image/*,.txt,.md,.json,.csv,.xml,.html,.css,.js,.py,.ts,.jsx,.tsx" title="Attach File">
+                <button id="voice-input" title="Voice Input" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 14l2-2-5-4.82-5 4.82 2 2zm5-9.66V5c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2.34l3 2.88zM9 19c-5 0-9-4-9-9s4-9 9-9 9 4 9 9-4 9-9 9z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="input-wrapper">
+                <textarea id="user-input" placeholder="Type a message... (Shift+Enter for new line)" rows="1"></textarea>
+            </div>
+            <button id="send-btn" class="send-button">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 20.1l7-54 6 2 2 2 2-1.5L22 4l-2 1.5L5 18.1z" fill="currentColor"/>
+                </svg>
+            </button>
+        </div>
+
+     <!-- Status Indicator -->
+     <div id="status-bar" class="status-bar">
+         <span id="status-text">Ready</span>
+         <div id="model-info" class="model-info">
+             <span>Model: </span><span id="current-model">-</span>
+         </div>
+     </div>
+ </div>
+
+ <!-- Toast Container -->
+ <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+ <!-- Settings Modal -->
+ <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <h2>Settings</h2>
+            <div class="settings-section">
+                <h3>API Configuration</h3>
+                <label for="api-key-input">OpenRouter API Key:</label>
+                <input type="password" id="api-key-input" placeholder="sk-or-...">
+                <small>Get your key from <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></small>
+            </div>
+            <div class="settings-section">
+                <h3>Model Selection</h3>
+                <label for="model-select">Choose Model:</label>
+                <select id="model-select">
+                    <!-- Options will be populated dynamically -->
+                </select>
+            </div>
+            <div class="settings-section">
+                <h3>Appearance</h3>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="theme-toggle">
+                    <span class="slider"></span>
+                    Dark Theme
+                </label>
+            </div>
+            <div class="settings-section">
+                <h3>Chat Options</h3>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="save-history">
+                    <span class="slider"></span>
+                    Save Chat History
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="auto-scroll">
+                    <span class="slider"></span>
+                    Auto-scroll to Latest
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-settings">Cancel</button>
+                <button id="save-settings">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="sidepanel.js" type="module"></script>
+</body>
+</html>

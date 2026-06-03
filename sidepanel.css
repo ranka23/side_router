@@ -1,0 +1,603 @@
+/* ================= SIDEPANEL STYLES ================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* CSS Variables */
+:root {
+    --bg-color: #ffffff;
+    --text-color: #1e1e1e;
+    --border-color: #e0e0e0;
+    --primary-color: #0078d7;
+    --user-msg-bg: #0078d7;
+    --user-msg-text: #ffffff;
+    --ai-msg-bg: #f3f3f3;
+    --ai-msg-text: #1e1e1e;
+    --input-bg: #f9f9f9;
+    --input-border: #ccc;
+    --hover-bg: #f0f0f0;
+}
+
+/* Dark Theme */
+.dark-theme {
+    --bg-color: #1e1e1e;
+    --text-color: #e0e0e0;
+    --border-color: #333;
+    --primary-color: #4a90e2;
+    --user-msg-bg: #4a90e2;
+    --user-msg-text: #ffffff;
+    --ai-msg-bg: #2d2d2d;
+    --ai-msg-text: #e0e0e0;
+    --input-bg: #2d2d2d;
+    --input-border: #444;
+    --hover-bg: #333;
+}
+
+.chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.chat-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-color);
+}
+
+.chat-header h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.header-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.header-controls button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.header-controls button:hover {
+    background-color: var(--hover-bg);
+}
+
+/* Chat Messages Area */
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+}
+
+.message {
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+.message.user {
+    align-self: flex-end;
+}
+
+.message.ai {
+    align-self: flex-start;
+}
+
+.message-content {
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    position: relative;
+}
+
+.message.user .message-content {
+    background-color: var(--user-msg-bg);
+    color: var(--user-msg-text);
+    border-bottom-right-radius: 4px;
+}
+
+.message.ai .message-content {
+    background-color: var(--ai-msg-bg);
+    color: var(--ai-msg-text);
+    border-bottom-left-radius: 4px;
+}
+
+.message-content code {
+    background-color: rgba(0,0,0,0.1);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: "Courier New", Courier, monospace;
+}
+
+.message-content pre {
+    background-color: rgba(0,0,0,0.1);
+    padding: 8px;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin-top: 4px;
+    display: block;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px;
+}
+
+.typing-indicator .dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--text-color);
+    border-radius: 50%;
+    opacity: 0.3;
+    animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-indicator .dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator .dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 60%, 100% { opacity: 0.3; }
+    30% { opacity: 1; }
+}
+
+/* Input Area */
+.chat-input-area {
+    padding: 12px;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-controls button,
+.input-controls input[type="file"] {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.input-controls button:hover,
+.input-controls input[type="file"]:hover {
+    background-color: var(--hover-bg);
+}
+
+.input-controls input[type="file"] {
+    display: none; /* Hidden, we'll trigger it via label */
+}
+
+#voice-input {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.input-wrapper {
+    position: relative;
+    flex: 1;
+}
+
+#user-input {
+    width: 100%;
+    min-height: 20px;
+    max-height: 100px;
+    padding: 10px 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 18px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 0.95rem;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#user-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.25);
+}
+
+#user-input::placeholder {
+    color: rgba(30, 30, 30, 0.5);
+}
+
+.dark-theme #user-input::placeholder {
+    color: rgba(224, 224, 224, 0.5);
+}
+
+.send-button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.send-button:hover:not(:disabled) {
+    background-color: #005a9e;
+    transform: scale(1.05);
+}
+
+.send-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Status Bar */
+.status-bar {
+    height: 28px;
+    padding: 0 12px;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+}
+
+.status-bar #status-text {
+    color: rgba(30, 30, 30, 0.7);
+}
+
+.dark-theme .status-bar #status-text {
+    color: rgba(224, 224, 224, 0.7);
+}
+
+.model-info {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: rgba(30, 30, 30, 0.6);
+}
+
+.dark-theme .model-info {
+    color: rgba(224, 224, 224, 0.6);
+}
+
+/* Settings Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-content h2 {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 1.5rem;
+}
+
+.settings-section {
+    padding: 16px 24px;
+}
+
+.settings-section h3 {
+    margin-bottom: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.settings-section label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.settings-section input[type="password"],
+.settings-section input[type="text"],
+.settings-section select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.settings-section input[type="password"]:focus,
+.settings-section input[type="text"]:focus,
+.settings-section select:focus {
+    border-color: var(--primary-color);
+}
+
+.settings-section select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px;
+}
+
+.settings-section small {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: rgba(30, 30, 30, 0.6);
+}
+
+.dark-theme .settings-section small {
+    color: rgba(224, 224, 224, 0.6);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    margin-top: 8px;
+}
+
+.toggle-switch input {
+    display: none;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    border-radius: 24px;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: var(--primary-color);
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+/* Modal Actions */
+.modal-actions {
+    padding: 16px 24px 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.modal-actions button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.modal-actions button:hover {
+    opacity: 0.9;
+}
+
+#cancel-settings {
+    background-color: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+#save-settings {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* ================= TOAST STYLES ================= */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    position: relative;
+    min-width: 250px;
+    max-width: 350px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(4px);
+    background-color: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transform: translateX(120%);
+    opacity: 0;
+    animation: toastSlideIn 0.3s ease forwards, toastFadeOut 0.3s ease 2.7s forwards;
+}
+
+.toast-success {
+    background-color: rgba(16, 185, 129, 0.9);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.toast-error {
+    background-color: rgba(239, 68, 68, 0.9);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.toast-warning {
+    background-color: rgba(245, 158, 11, 0.9);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.toast-info {
+    background-color: rgba(59, 130, 246, 0.9);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toast-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.toast-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+@keyframes toastSlideIn {
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toastFadeOut {
+    to {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+}
+
+/* Reduce motion preference */
+@media (prefers-reduced-motion: reduce) {
+    .toast {
+        animation: none;
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
