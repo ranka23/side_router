@@ -1,21 +1,26 @@
-// background.js — OpenRouter AI Chat Extension
+// background.js — SideRouter v4 (Complete)
 
-const SETTINGS_KEYS = ['apiKey', 'selectedModel', 'isDarkTheme', 'saveHistory', 'autoScroll'];
-
-let settings = {
+const defaults = {
   apiKey: null,
-  selectedModel: 'meta-llama/llama-3.3-70b-instruct:free',
-  isDarkTheme: false,
+  selectedModel: null,
+  isDarkTheme: null, // null = auto-detect
   saveHistory: true,
-  autoScroll: true,
+  sidePosition: 'right',
+  autoApprove: false,
+  alwaysOnTop: false,
 };
 
-// ── Load / Save ──────────────────────────────────────────────
+let settings = { ...defaults };
+let modelsCache = null;
+let modelsCacheTime = 0;
+const CACHE_TTL = 30 * 60 * 1000;
+
+// ── Storage ──────────────────────────────────────────────────
 async function loadSettings() {
   try {
-    const data = await chrome.storage.local.get(SETTINGS_KEYS);
-    for (const key of SETTINGS_KEYS) {
-      if (data[key] !== undefined) settings[key] = data[key];
+    const data = await chrome.storage.local.get(Object.keys(defaults));
+    for (const k of Object.keys(defaults)) {
+      if (data[k] !== undefined) settings[k] = data[k];
     }
   } catch (e) { console.error('loadSettings:', e); }
 }
@@ -27,51 +32,65 @@ async function saveSettings(updates) {
   } catch (e) { console.error('saveSettings:', e); }
 }
 
-// ── Models ───────────────────────────────────────────────────
-const FALLBACK_MODELS = [
-  // Verified free models on OpenRouter (2025)
-  { id: 'meta-llama/llama-3.3-70b-instruct:free',       name: 'Llama 3.3 70B' },
-  { id: 'meta-llama/llama-3.2-3b-instruct:free',        name: 'Llama 3.2 3B' },
-  { id: 'nousresearch/hermes-3-llama-3.1-405b:free',    name: 'Hermes 3 405B' },
-  { id: 'moonshotai/kimi-k2.6:free',                    name: 'Kimi K2.6' },
-  { id: 'openai/gpt-oss-120b:free',                     name: 'GPT-OSS 120B' },
-  { id: 'openai/gpt-oss-20b:free',                      name: 'GPT-OSS 20B' },
-  { id: 'z-ai/glm-4.5-air:free',                        name: 'GLM 4.5 Air' },
-  { id: 'qwen/qwen3-next-80b-a3b-instruct:free',        name: 'Qwen3 Next 80B' },
-  { id: 'qwen/qwen3-coder:free',                        name: 'Qwen3 Coder' },
-  { id: 'google/gemma-4-31b-it:free',                   name: 'Gemma 4 31B' },
-  { id: 'google/gemma-4-26b-a4b-it:free',               name: 'Gemma 4 26B' },
-  { id: 'nvidia/nemotron-3-super-120b-a12b:free',       name: 'Nemotron Super 120B' },
-  { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'Nemotron Nano 30B' },
-  { id: 'nvidia/nemotron-3-nano-30b-a3b:free',          name: 'Nemotron Nano 30B' },
-  { id: 'nvidia/nemotron-nano-9b-v2:free',              name: 'Nemotron Nano 9B' },
-  { id: 'nvidia/nemotron-nano-12b-v2-vl:free',          name: 'Nemotron Nano 12B VL' },
-  { id: 'liquid/lfm-2.5-1.2b-instruct:free',            name: 'LFM 2.5 1.2B' },
-  { id: 'liquid/lfm-2.5-1.2b-thinking:free',            name: 'LFM 2.5 Thinking' },
-  { id: 'poolside/laguna-m.1:free',                      name: 'Laguna M.1' },
-  { id: 'poolside/laguna-xs.2:free',                     name: 'Laguna XS.2' },
-  { id: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', name: 'Dolphin Mistral 24B' },
-];
-
-let modelsCache = null;
-let modelsCacheTime = 0;
-const CACHE_TTL = 30 * 60 * 1000; // 30 min
-
+// ── Models (always from API, never hardcoded) ────────────────
 async function fetchModels() {
   if (modelsCache && Date.now() - modelsCacheTime < CACHE_TTL) return modelsCache;
   try {
     const res = await fetch('https://openrouter.ai/api/v1/models');
     if (!res.ok) throw new Error(res.statusText);
     const data = await res.json();
-    modelsCache = data.data
-      .filter(m => m.id.endsWith(':free'))
-      .map(m => ({ id: m.id, name: m.name || m.id.split('/').pop() }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const all = (data.data || []).map(m => {
+      const p = m.pricing || {};
+      const isFree = m.id.endsWith(':free') || (String(p.prompt) === '0' && String(p.completion) === '0');
+      return {
+        id: m.id,
+        name: m.name || m.id.split('/').pop().replace(/-/g, ' '),
+        isFree,
+        contextLength: m.context_length || 4096,
+        pricing: typeof p === 'object' ? p : {},
+      };
+    });
+    const free = all.filter(m => m.isFree).sort((a, b) => a.name.localeCompare(b.name));
+    const paid = all.filter(m => !m.isFree).sort((a, b) => a.name.localeCompare(b.name));
+    modelsCache = [...free, ...paid];
     modelsCacheTime = Date.now();
+
+    // Auto-select first free model if none selected
+    if (!settings.selectedModel && free.length > 0) {
+      settings.selectedModel = free[0].id;
+      await saveSettings({ selectedModel: settings.selectedModel });
+    }
     return modelsCache;
   } catch (e) {
     console.error('fetchModels:', e);
-    return FALLBACK_MODELS;
+    return [];
+  }
+}
+
+// ── API Key Validation ───────────────────────────────────────
+async function validateApiKey(key) {
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { 'Authorization': `Bearer ${key}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      let usage = null;
+      try {
+        const uRes = await fetch('https://openrouter.ai/api/v1/auth/key', {
+          headers: { 'Authorization': `Bearer ${key}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (uRes.ok) usage = await uRes.json();
+      } catch (_) {}
+      return { valid: true, usage };
+    }
+    if (res.status === 401) return { valid: false, error: 'Invalid API key. Get one at openrouter.ai/keys' };
+    if (res.status === 403) return { valid: false, error: 'Forbidden — key may be expired or revoked.' };
+    return { valid: false, error: `HTTP ${res.status}: ${res.statusText || 'Unknown error'}` };
+  } catch (e) {
+    if (e.name === 'TimeoutError') return { valid: false, error: 'Request timed out. Check your connection.' };
+    return { valid: false, error: e.message };
   }
 }
 
@@ -87,33 +106,88 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ success: true });
         break;
       case 'getModels':
-        const models = await fetchModels();
-        sendResponse({ success: true, models });
+        sendResponse({ success: true, models: await fetchModels() });
         break;
+      case 'validateKey': {
+        const result = await validateApiKey(msg.key);
+        if (result.valid) {
+          settings.apiKey = msg.key;
+          await saveSettings({ apiKey: msg.key });
+        }
+        sendResponse(result);
+        break;
+      }
+      case 'getActiveTabContent': {
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => ({
+              title: document.title,
+              url: location.href,
+              text: document.body?.innerText?.slice(0, 8000) || '',
+              forms: Array.from(document.forms).map(f => ({
+                id: f.id, action: f.action,
+                inputs: Array.from(f.elements).map(e => ({
+                  tag: e.tagName, type: e.type, name: e.name, id: e.id,
+                  placeholder: e.placeholder, value: e.value,
+                })),
+              })),
+            }),
+          });
+          sendResponse({ success: true, content: results[0]?.result });
+        } catch (e) { sendResponse({ success: false, error: e.message }); }
+        break;
+      }
+      case 'executeOnTab': {
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            args: [msg.code],
+            func: (code) => {
+              try { return { ok: true, result: eval(code) }; }
+              catch (e) { return { ok: false, error: e.message }; }
+            },
+          });
+          sendResponse({ success: true, result: results[0]?.result });
+        } catch (e) { sendResponse({ success: false, error: e.message }); }
+        break;
+      }
+      case 'openFloatingWindow': {
+        try {
+          const url = chrome.runtime.getURL('sidepanel.html?mode=floating');
+          const win = await chrome.windows.create({
+            url, type: 'popup', width: 440, height: 720, focused: true,
+          });
+          sendResponse({ success: true, windowId: win.id });
+        } catch (e) { sendResponse({ success: false, error: e.message }); }
+        break;
+      }
       default:
         sendResponse({ success: false, error: 'Unknown action' });
     }
   })();
-  return true; // keep channel open for async
+  return true;
 });
 
-// ── Side Panel ───────────────────────────────────────────────
+// ── Side Panel Open ───────────────────────────────────────────
 chrome.action.onClicked.addListener(async (tab) => {
-  try {
-    await chrome.sidePanel.open({ windowId: tab.windowId });
-  } catch (e) {
-    console.error('open side panel:', e);
-  }
+  try { await chrome.sidePanel.open({ windowId: tab.windowId }); }
+  catch (e) { console.error('open side panel:', e); }
 });
 
-// ── Init ─────────────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(async () => {
   await loadSettings();
   await chrome.sidePanel.setOptions({ path: 'sidepanel.html', enabled: true });
+  fetchModels();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await loadSettings();
+  fetchModels();
 });
 
-console.log('OpenRouter AI Chat — background ready');
+console.log('SideRouter — background ready');
