@@ -6,8 +6,8 @@
   "action": {
     "default_title": "SideRouter",
     "default_icon": {
-      "16": "icon16.png",
-      "32": "icon32.png"
+      "16": "media/icon16.png",
+      "32": "media/icon32.png"
     }
   },
   "permissions": [
@@ -24,22 +24,22 @@
     "https://*/*"
   ],
   "side_panel": {
-    "default_path": "sidepanel.html"
+    "default_path": "src/sidepanel.html"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background.js"
   },
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["content.js"],
+      "js": ["src/content.js"],
       "run_at": "document_idle"
     }
   ],
   "icons": {
-    "16": "icon16.png",
-    "32": "icon32.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+    "16": "media/icon16.png",
+    "32": "media/icon32.png",
+    "48": "media/icon48.png",
+    "128": "media/icon128.png"
   }
 }
