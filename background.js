@@ -1,250 +1,119 @@
-// background.js - Service Worker for OpenRouter AI Chat Extension
+// background.js — OpenRouter AI Chat Extension
 
-// Extension ID for messaging
-const EXTENSION_ID = chrome.runtime.id;
+const SETTINGS_KEYS = ['apiKey', 'selectedModel', 'isDarkTheme', 'saveHistory', 'autoScroll'];
 
-// Store settings that can be shared with content scripts
-let extensionSettings = {
+let settings = {
   apiKey: null,
-  selectedModel: "meta-llama/llama-3-8b-instruct:free",
+  selectedModel: 'meta-llama/llama-3.3-70b-instruct:free',
   isDarkTheme: false,
   saveHistory: true,
   autoScroll: true,
 };
 
-// Load settings from storage on startup
+// ── Load / Save ──────────────────────────────────────────────
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get([
-      "openrouterApiKey",
-      "openrouterSelectedModel",
-      "openrouterIsDarkTheme",
-      "openrouterSaveHistory",
-      "openrouterAutoScroll",
-    ]);
-
-    extensionSettings.apiKey = result.openrouterApiKey || null;
-    extensionSettings.selectedModel =
-      result.openrouterSelectedModel || "meta-llama/llama-3-8b-instruct:free";
-    extensionSettings.isDarkTheme = result.openrouterIsDarkTheme || false;
-    extensionSettings.saveHistory =
-      result.openrouterSaveHistory !== undefined
-        ? result.openrouterSaveHistory
-        : true;
-    extensionSettings.autoScroll =
-      result.openrouterAutoScroll !== undefined
-        ? result.openrouterAutoScroll
-        : true;
-  } catch (error) {
-    console.error("Failed to load settings in background:", error);
-  }
+    const data = await chrome.storage.local.get(SETTINGS_KEYS);
+    for (const key of SETTINGS_KEYS) {
+      if (data[key] !== undefined) settings[key] = data[key];
+    }
+  } catch (e) { console.error('loadSettings:', e); }
 }
 
-// Save settings to storage
 async function saveSettings(updates) {
   try {
-    Object.assign(extensionSettings, updates);
-    await chrome.storage.local.set({
-      openrouterApiKey: extensionSettings.apiKey,
-      openrouterSelectedModel: extensionSettings.selectedModel,
-      openrouterIsDarkTheme: extensionSettings.isDarkTheme,
-      openrouterSaveHistory: extensionSettings.saveHistory,
-      openrouterAutoScroll: extensionSettings.autoScroll,
-    });
-
-    // Notify all tabs/views of settings change
-    broadcastSettingsUpdate();
-  } catch (error) {
-    console.error("Failed to save settings:", error);
-  }
+    Object.assign(settings, updates);
+    await chrome.storage.local.set(updates);
+  } catch (e) { console.error('saveSettings:', e); }
 }
 
-// Broadcast settings update to all frames/tabs
-function broadcastSettingsUpdate() {
-  chrome.runtime.sendMessage({
-    action: "settingsUpdate",
-    settings: extensionSettings,
-  });
+// ── Models ───────────────────────────────────────────────────
+const FALLBACK_MODELS = [
+  // Verified free models on OpenRouter (2025)
+  { id: 'meta-llama/llama-3.3-70b-instruct:free',       name: 'Llama 3.3 70B' },
+  { id: 'meta-llama/llama-3.2-3b-instruct:free',        name: 'Llama 3.2 3B' },
+  { id: 'nousresearch/hermes-3-llama-3.1-405b:free',    name: 'Hermes 3 405B' },
+  { id: 'moonshotai/kimi-k2.6:free',                    name: 'Kimi K2.6' },
+  { id: 'openai/gpt-oss-120b:free',                     name: 'GPT-OSS 120B' },
+  { id: 'openai/gpt-oss-20b:free',                      name: 'GPT-OSS 20B' },
+  { id: 'z-ai/glm-4.5-air:free',                        name: 'GLM 4.5 Air' },
+  { id: 'qwen/qwen3-next-80b-a3b-instruct:free',        name: 'Qwen3 Next 80B' },
+  { id: 'qwen/qwen3-coder:free',                        name: 'Qwen3 Coder' },
+  { id: 'google/gemma-4-31b-it:free',                   name: 'Gemma 4 31B' },
+  { id: 'google/gemma-4-26b-a4b-it:free',               name: 'Gemma 4 26B' },
+  { id: 'nvidia/nemotron-3-super-120b-a12b:free',       name: 'Nemotron Super 120B' },
+  { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'Nemotron Nano 30B' },
+  { id: 'nvidia/nemotron-3-nano-30b-a3b:free',          name: 'Nemotron Nano 30B' },
+  { id: 'nvidia/nemotron-nano-9b-v2:free',              name: 'Nemotron Nano 9B' },
+  { id: 'nvidia/nemotron-nano-12b-v2-vl:free',          name: 'Nemotron Nano 12B VL' },
+  { id: 'liquid/lfm-2.5-1.2b-instruct:free',            name: 'LFM 2.5 1.2B' },
+  { id: 'liquid/lfm-2.5-1.2b-thinking:free',            name: 'LFM 2.5 Thinking' },
+  { id: 'poolside/laguna-m.1:free',                      name: 'Laguna M.1' },
+  { id: 'poolside/laguna-xs.2:free',                     name: 'Laguna XS.2' },
+  { id: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', name: 'Dolphin Mistral 24B' },
+];
 
-  // Also notify tabs
-  chrome.tabs.query({}, (tabs) => {
-    tabs.forEach((tab) => {
-      if (tab.id && !tab.url.startsWith("chrome://")) {
-        chrome.tabs
-          .sendMessage(tab.id, {
-            action: "settingsUpdate",
-            settings: extensionSettings,
-          })
-          .catch(() => {}); // Ignore errors for tabs that might be closing
-      }
-    });
-  });
-}
+let modelsCache = null;
+let modelsCacheTime = 0;
+const CACHE_TTL = 30 * 60 * 1000; // 30 min
 
-// Listen for extension installation/update
-chrome.runtime.onInstalled.addListener(async () => {
-  await loadSettings();
-  await chrome.sidePanel.setOptions({
-    path: "sidepanel.html",
-    enabled: true,
-  });
-  console.log("OpenRouter AI Chat Extension installed/updated");
-});
-
-// Listen for extension startup
-chrome.runtime.onStartup.addListener(async () => {
-  await loadSettings();
-  // Ensure side panel is enabled and set correctly
+async function fetchModels() {
+  if (modelsCache && Date.now() - modelsCacheTime < CACHE_TTL) return modelsCache;
   try {
-    await chrome.sidePanel.setOptions({
-      path: "sidepanel.html",
-      enabled: true,
-    });
-  } catch (error) {
-    console.error("Failed to set side panel options:", error);
+    const res = await fetch('https://openrouter.ai/api/v1/models');
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    modelsCache = data.data
+      .filter(m => m.id.endsWith(':free'))
+      .map(m => ({ id: m.id, name: m.name || m.id.split('/').pop() }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    modelsCacheTime = Date.now();
+    return modelsCache;
+  } catch (e) {
+    console.error('fetchModels:', e);
+    return FALLBACK_MODELS;
   }
-  console.log("OpenRouter AI Chat Extension started");
+}
+
+// ── Message Handler ──────────────────────────────────────────
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  (async () => {
+    switch (msg.action) {
+      case 'getSettings':
+        sendResponse({ success: true, settings });
+        break;
+      case 'saveSettings':
+        await saveSettings(msg.settings);
+        sendResponse({ success: true });
+        break;
+      case 'getModels':
+        const models = await fetchModels();
+        sendResponse({ success: true, models });
+        break;
+      default:
+        sendResponse({ success: false, error: 'Unknown action' });
+    }
+  })();
+  return true; // keep channel open for async
 });
 
-// Handle action click to open side panel
+// ── Side Panel ───────────────────────────────────────────────
 chrome.action.onClicked.addListener(async (tab) => {
-  console.log("Action clicked, opening side panel");
   try {
     await chrome.sidePanel.open({ windowId: tab.windowId });
-    console.log("Side panel opened successfully");
-  } catch (error) {
-    console.error("Failed to open side panel:", error);
-    // Fallback: try to open a tab with the sidepanel
-    chrome.tabs.create({ url: chrome.runtime.getURL("sidepanel.html") });
+  } catch (e) {
+    console.error('open side panel:', e);
   }
 });
 
-// Listen for messages from popup, sidepanel, or content scripts
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Handle settings requests from UI
-  if (message.action === "getSettings") {
-    sendResponse(extensionSettings);
-    return true; // Indicates we'll respond asynchronously
-  }
-
-  // Handle settings updates from UI
-  if (message.action === "updateSettings") {
-    saveSettings(message.settings);
-    sendResponse({ success: true });
-    return true;
-  }
-
-  // Handle API key validation
-  if (message.action === "validateApiKey") {
-    validateApiKey(message.apiKey).then((isValid) => {
-      sendResponse({ valid: isValid });
-    });
-    return true; // Will respond asynchronously
-  }
-
-  // Handle model list request
-  if (message.action === "getModelList") {
-    sendResponse({ models: getAvailableModels() });
-    return true;
-  }
-
-  return false; // Let other listeners handle the message
+// ── Init ─────────────────────────────────────────────────────
+chrome.runtime.onInstalled.addListener(async () => {
+  await loadSettings();
+  await chrome.sidePanel.setOptions({ path: 'sidepanel.html', enabled: true });
 });
 
-// Validate OpenRouter API key by making a test request
-async function validateApiKey(apiKey) {
-  if (!apiKey || !apiKey.startsWith("sk-or-")) {
-    return false;
-  }
-
-  try {
-    const response = await fetch("https://openrouter.ai/api/v1/models", {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    });
-    return response.ok;
-  } catch (error) {
-    return false;
-  }
-}
-
-// Get list of available models (cached)
-let modelsCache = null;
-let modelsCacheTimestamp = 0;
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
-
-async function getAvailableModels() {
-  const now = Date.now();
-  if (modelsCache && now - modelsCacheTimestamp < CACHE_DURATION) {
-    return modelsCache;
-  }
-
-  try {
-    const response = await fetch("https://openrouter.ai/api/v1/models");
-    if (!response.ok) throw new Error("Failed to fetch models");
-
-    const data = await response.json();
-    // Filter and format models for easier consumption
-    modelsCache = data.data.map((model) => ({
-      id: model.id,
-      name: model.name || model.id,
-      description: model.description || "",
-      pricing: model.pricing || {},
-    }));
-    modelsCacheTimestamp = now;
-    return modelsCache;
-  } catch (error) {
-    console.error("Failed to fetch models:", error);
-    // Return fallback list
-    return getFallbackModels();
-  }
-}
-
-// Fallback model list
-function getFallbackModels() {
-  return [
-    {
-      id: "meta-llama/llama-3-8b-instruct:free",
-      name: "Llama 3 8B (Free)",
-      description: "Meta's Llama 3 8B instruction model",
-    },
-    {
-      id: "meta-llama/llama-3-70b-instruct:free",
-      name: "Llama 3 70B (Free)",
-      description: "Meta's Llama 3 70B instruction model",
-    },
-    {
-      id: "mistralai/mistral-7b-instruct:free",
-      name: "Mistral 7B (Free)",
-      description: "Mistral AI's 7B instruction model",
-    },
-    {
-      id: "mistralai/mixtral-8x7b-instruct:free",
-      name: "Mixtral 8x7B (Free)",
-      description: "Mistral AI's Mixtral 8x7B model",
-    },
-    {
-      id: "google/gemma-2-9b-it:free",
-      name: "Gemma 2 9B (Free)",
-      description: "Google's Gemma 2 9B instruction model",
-    },
-  ];
-}
-
-// Handle tab updates to apply theme changes
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === "complete" && !tab.url.startsWith("chrome://")) {
-    // Inject content script if needed for theme synchronization
-    // In this version, we're using sidepanel so content script might not be needed
-    // But we'll keep this for compatibility
-  }
+chrome.runtime.onStartup.addListener(async () => {
+  await loadSettings();
 });
 
-// Listen for when the sidepanel is opened
-chrome.sidePanel.onOpened.addListener((window) => {
-  console.log("Sidepanel opened");
-  // Could send initial state here if needed
-});
-
-console.log("OpenRouter AI Chat Background Service Worker loaded");
+console.log('OpenRouter AI Chat — background ready');

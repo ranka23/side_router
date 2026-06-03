@@ -1,678 +1,325 @@
-// Sidepanel JavaScript for OpenRouter AI Chat Extension
+// sidepanel.js — OpenRouter AI Chat Extension
 
-class OpenRouterChat {
-    constructor() {
-        this.apiKey = null;
-        this.selectedModel = "meta-llama/llama-3-8b-instruct:free"; // Default free model
-        this.messages = [];
-        this.isDarkTheme = false;
-        this.saveHistory = true;
-        this.autoScroll = true;
-        
-        // Bind methods
-        this.sendMessage = this.sendMessage.bind(this);
-        this.toggleTheme = this.toggleTheme.bind(this);
-        this.clearChat = this.clearChat.bind(this);
-        this.showSettings = this.showSettings.bind(this);
-        this.hideSettings = this.hideSettings.bind(this);
-        this.saveSettings = this.saveSettings.bind(this);
-        this.loadSettings = this.loadSettings.bind(this);
-        this.attachFile = this.attachFile.bind(this);
-        this.handleKeyDown = this.handleKeyDown.bind(this);
-        
-        // Initialize
-        this.init().catch(err => {
-            console.error('Failed to initialize OpenRouterChat:', err);
-            // Fallback initialization
-            this.fallbackInit();
-        });
+class ChatApp {
+  constructor() {
+    // State
+    this.settings = { apiKey: null, selectedModel: null, isDarkTheme: false, saveHistory: true };
+    this.messages = [];
+
+    // Cache DOM elements
+    this.$ = {
+      messages:    document.getElementById('chat-messages'),
+      input:       document.getElementById('msg-input'),
+      sendBtn:     document.getElementById('btn-send'),
+      modelSelect: document.getElementById('model-select'),
+      statusDot:   document.getElementById('status-dot'),
+      settings:    document.getElementById('settings-modal'),
+      apiKey:      document.getElementById('api-key'),
+      theme:       document.getElementById('theme-toggle'),
+      saveHistory: document.getElementById('save-history-toggle'),
+      toast:       document.getElementById('toast-container'),
+    };
+
+    // Bind events
+    this.$.sendBtn.onclick = () => this.send();
+    this.$.input.oninput = () => this.resizeInput();
+    this.$.input.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } };
+    this.$.modelSelect.onchange = () => { this.settings.selectedModel = this.$.modelSelect.value; this.saveSettings(); };
+    document.getElementById('btn-settings').onclick = () => this.openSettings();
+    document.getElementById('btn-clear').onclick = () => this.clearChat();
+    document.getElementById('modal-close').onclick = () => this.closeSettings();
+    document.getElementById('btn-save-key').onclick = () => this.saveApiKey();
+    this.$.settings.onclick = (e) => { if (e.target === this.$.settings) this.closeSettings(); };
+    this.$.theme.onchange = () => { this.settings.isDarkTheme = this.$.theme.checked; document.body.classList.toggle('dark', this.settings.isDarkTheme); this.saveSettings(); };
+    this.$.saveHistory.onchange = () => { this.settings.saveHistory = this.$.saveHistory.checked; this.saveSettings(); };
+
+    // Init
+    this.bootstrap();
+  }
+
+  // ── Bootstrap ───────────────────────────────────────────────
+  async bootstrap() {
+    try {
+      // Load saved settings
+      const res = await this.bg('getSettings', {});
+      if (res?.success) Object.assign(this.settings, res.settings);
+
+      // Load saved models list
+      const mod = await this.bg('getModels', {});
+      if (mod?.success && mod.models?.length) this.populateModels(mod.models);
+
+      // Fallback models if API fetch failed
+      if (!this.$.modelSelect.options.length) this.populateModels(null);
+
+      // Select saved model
+      if (this.settings.selectedModel) this.$.modelSelect.value = this.settings.selectedModel;
+
+      // Apply theme
+      document.body.classList.toggle('dark', this.settings.isDarkTheme);
+      this.$.theme.checked = this.settings.isDarkTheme;
+      this.$.saveHistory.checked = this.settings.saveHistory;
+
+      // Populate settings form
+      this.$.apiKey.value = this.settings.apiKey || '';
+
+      // Load chat history
+      if (this.settings.saveHistory) await this.loadHistory();
+
+      this.updateStatus();
+    } catch (e) {
+      console.error('bootstrap:', e);
+      this.showToast('Failed to initialize — check console', 'error');
     }
-    
-    async init() {
-        // Load settings from background service worker
-        await this.loadSettings();
-        
-        // Get DOM elements
-        this.chatMessages = document.getElementById('chat-messages');
-        this.userInput = document.getElementById('user-input');
-        this.sendBtn = document.getElementById('send-btn');
-        this.clearChatBtn = document.getElementById('clear-chat');
-        this.settingsBtn = document.getElementById('settings-btn');
-        this.settingsModal = document.getElementById('settings-modal');
-        this.modelSelect = document.getElementById('model-select');
-        this.apiKeyInput = document.getElementById('api-key-input');
-        this.themeToggle = document.getElementById('theme-toggle');
-        this.saveHistoryCheckbox = document.getElementById('save-history');
-        this.autoScrollCheckbox = document.getElementById('auto-scroll');
-        this.statusText = document.getElementById('status-text');
-        this.currentModelSpan = document.getElementById('current-model');
-        this.fileAttachInput = document.getElementById('file-attach');
-        
-        // Populate model selector
-        await this.populateModelSelector();
-        
-        // Set initial theme
-        document.body.classList.toggle('dark-theme', this.isDarkTheme);
-        
-        // Update current model display
-        this.updateCurrentModelDisplay();
-        
-        // Load chat history if enabled
-        if (this.saveHistory) {
-            await this.loadChatHistory();
-        }
-        
-        // Add event listeners
-        this.sendBtn.addEventListener('click', this.sendMessage);
-        this.clearChatBtn.addEventListener('click', this.clearChat);
-        this.settingsBtn.addEventListener('click', this.showSettings);
-        this.userInput.addEventListener('keydown', this.handleKeyDown);
-        this.fileAttachInput.addEventListener('change', this.attachFile);
-        
-        // Settings modal listeners
-        document.getElementById('cancel-settings').addEventListener('click', this.hideSettings);
-        document.getElementById('save-settings').addEventListener('click', this.saveSettings);
-        this.themeToggle.addEventListener('change', this.toggleTheme);
-        this.saveHistoryCheckbox.addEventListener('change', (e) => {
-            this.saveHistory = e.target.checked;
-        });
-        this.autoScrollCheckbox.addEventListener('change', (e) => {
-            this.autoScroll = e.target.checked;
-        });
-        
-        // Close modal when clicking outside
-        this.settingsModal.addEventListener('click', (e) => {
-            if (e.target === this.settingsModal) {
-                this.hideSettings();
-            }
-        });
-        
-        // Update status
-        this.updateStatus();
-        
-        // Set up listener for settings updates from background
-        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-            // Handle settings updates from background
-            if (message.action === 'settingsUpdate') {
-                // Apply the updated settings
-                this.apiKey = message.settings.apiKey || null;
-                this.selectedModel = message.settings.selectedModel || "meta-llama/llama-3-8b-instruct:free";
-                this.isDarkTheme = message.settings.isDarkTheme || false;
-                this.saveHistory = message.settings.saveHistory !== undefined ? message.settings.saveHistory : true;
-                this.autoScroll = message.settings.autoScroll !== undefined ? message.settings.autoScroll : true;
-                
-                // Update UI to reflect new settings
-                this.updateUIFromSettings();
-                
-                // We don't need to send a response for unsolicited messages
-                return true;
-            }
-            
-            // Handle settings requests from UI (for background to respond to)
-            if (message.action === 'getSettings') {
-                sendResponse({
-                    apiKey: this.apiKey,
-                    selectedModel: this.selectedModel,
-                    isDarkTheme: this.isDarkTheme,
-                    saveHistory: this.saveHistory,
-                    autoScroll: this.autoScroll
-                });
-                return true; // Indicates we'll respond asynchronously
-            }
-            
-            return false; // Let other listeners handle the message
-        });
+  }
+
+  // ── Background messaging ────────────────────────────────────
+  bg(action, data) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ action, ...data }, (res) => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve(res);
+      });
+    });
+  }
+
+  // ── Save / Load Settings ────────────────────────────────────
+  async saveSettings() {
+    try {
+      await this.bg('saveSettings', { settings: this.settings });
+    } catch (e) { console.error('saveSettings:', e); }
+  }
+
+  async saveApiKey() {
+    const key = this.$.apiKey.value.trim();
+    if (!key) { this.showToast('Please enter an API key', 'error'); return; }
+    this.settings.apiKey = key;
+    await this.saveSettings();
+    this.updateStatus();
+    this.showToast('API key saved!', 'success');
+  }
+
+  // ── Models ──────────────────────────────────────────────────
+  populateModels(models) {
+    this.$.modelSelect.innerHTML = '';
+    const list = models || [
+      { id: 'meta-llama/llama-3.3-70b-instruct:free',       name: 'Llama 3.3 70B' },
+      { id: 'meta-llama/llama-3.2-3b-instruct:free',        name: 'Llama 3.2 3B' },
+      { id: 'nousresearch/hermes-3-llama-3.1-405b:free',    name: 'Hermes 3 405B' },
+      { id: 'moonshotai/kimi-k2.6:free',                    name: 'Kimi K2.6' },
+      { id: 'openai/gpt-oss-120b:free',                     name: 'GPT-OSS 120B' },
+      { id: 'z-ai/glm-4.5-air:free',                        name: 'GLM 4.5 Air' },
+      { id: 'qwen/qwen3-next-80b-a3b-instruct:free',        name: 'Qwen3 Next 80B' },
+      { id: 'qwen/qwen3-coder:free',                        name: 'Qwen3 Coder' },
+      { id: 'google/gemma-4-31b-it:free',                   name: 'Gemma 4 31B' },
+      { id: 'nvidia/nemotron-3-super-120b-a12b:free',       name: 'Nemotron Super 120B' },
+      { id: 'nvidia/nemotron-nano-9b-v2:free',              name: 'Nemotron Nano 9B' },
+      { id: 'liquid/lfm-2.5-1.2b-instruct:free',            name: 'LFM 2.5 1.2B' },
+      { id: 'poolside/laguna-m.1:free',                      name: 'Laguna M.1' },
+    ];
+    list.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.id;
+      if (m.name) opt.title = m.name;
+      this.$.modelSelect.appendChild(opt);
+    });
+    // Try to match saved model
+    if (this.settings.selectedModel) {
+      const match = Array.from(this.$.modelSelect.options).find(o => o.value === this.settings.selectedModel);
+      if (match) this.$.modelSelect.value = this.settings.selectedModel;
     }
-    
-    fallbackInit() {
-        // Synchronous fallback initialization
-        // Use default values since we can't reliably load settings in fallback
-        this.apiKey = null;
-        this.selectedModel = "meta-llama/llama-3-8b-instruct:free";
-        this.isDarkTheme = false;
-        this.saveHistory = true;
-        this.autoScroll = true;
-        
-        // Get DOM elements
-        this.chatMessages = document.getElementById('chat-messages');
-        this.userInput = document.getElementById('user-input');
-        this.sendBtn = document.getElementById('send-btn');
-        this.clearChatBtn = document.getElementById('clear-chat');
-        this.settingsBtn = document.getElementById('settings-btn');
-        this.settingsModal = document.getElementById('settings-modal');
-        this.modelSelect = document.getElementById('model-select');
-        this.apiKeyInput = document.getElementById('api-key-input');
-        this.themeToggle = document.getElementById('theme-toggle');
-        this.saveHistoryCheckbox = document.getElementById('save-history');
-        this.autoScrollCheckbox = document.getElementById('auto-scroll');
-        this.statusText = document.getElementById('status-text');
-        this.currentModelSpan = document.getElementById('current-model');
-        this.fileAttachInput = document.getElementById('file-attach');
-        
-        // Populate model selector with fallback
-        this.populateModelSelectorFallback();
-        
-        // Set initial theme
-        document.body.classList.toggle('dark-theme', this.isDarkTheme);
-        
-        // Update current model display
-        this.updateCurrentModelDisplay();
-        
-        // Load chat history if enabled
-        if (this.saveHistory) {
-            this.loadChatHistory();
-        }
-        
-        // Add event listeners
-        this.sendBtn.addEventListener('click', this.sendMessage);
-        this.clearChatBtn.addEventListener('click', this.clearChat);
-        this.settingsBtn.addEventListener('click', this.showSettings);
-        this.userInput.addEventListener('keydown', this.handleKeyDown);
-        this.fileAttachInput.addEventListener('change', this.attachFile);
-        
-        // Settings modal listeners
-        document.getElementById('cancel-settings').addEventListener('click', this.hideSettings);
-        document.getElementById('save-settings').addEventListener('click', this.saveSettings);
-        this.themeToggle.addEventListener('change', this.toggleTheme);
-        this.saveHistoryCheckbox.addEventListener('change', (e) => {
-            this.saveHistory = e.target.checked;
-        });
-        this.autoScrollCheckbox.addEventListener('change', (e) => {
-            this.autoScroll = e.target.checked;
-        });
-        
-        // Close modal when clicking outside
-        this.settingsModal.addEventListener('click', (e) => {
-            if (e.target === this.settingsModal) {
-                this.hideSettings();
-            }
-        });
-        
-        // Update status
-        this.updateStatus();
-    }
-    
-    async loadSettings() {
-        try {
-            // Request settings from background service worker
-            const response = await chrome.runtime.sendMessage({
-                action: 'getSettings'
-            });
-            
-            this.apiKey = response.apiKey || null;
-            this.selectedModel = response.selectedModel || "meta-llama/llama-3-8b-instruct:free";
-            this.isDarkTheme = response.isDarkTheme || false;
-            this.saveHistory = response.saveHistory !== undefined ? response.saveHistory : true;
-            this.autoScroll = response.autoScroll !== undefined ? response.autoScroll : true;
-        } catch (e) {
-            console.error('Failed to load settings from background:', e);
-            // Use defaults
-            this.apiKey = null;
-            this.selectedModel = "meta-llama/llama-3-8b-instruct:free";
-            this.isDarkTheme = false;
-            this.saveHistory = true;
-            this.autoScroll = true;
-        }
-    }
-    
-    saveSettings() {
-        const settings = {
-            apiKey: this.apiKey,
-            selectedModel: this.selectedModel,
-            isDarkTheme: this.isDarkTheme,
-            saveHistory: this.saveHistory,
-            autoScroll: this.autoScroll
-        };
-        
-        // Send settings to background service worker for storage
-        chrome.runtime.sendMessage({
-            action: 'updateSettings',
-            settings: settings
-        }).then(response => {
-            if (chrome.runtime.lastError) {
-                console.error('Failed to save settings via background:', chrome.runtime.lastError);
-                this.showToast('Failed to save settings. Some preferences may not be remembered.', 'error');
-            } else if (!response || !response.success) {
-                console.error('Failed to save settings: Invalid response from background');
-                this.showToast('Failed to save settings. Some preferences may not be remembered.', 'error');
-            }
-            // Success - settings saved via background service worker
-        }).catch(error => {
-            console.error('Failed to send settings to background:', error);
-            this.showToast('Failed to save settings. Some preferences may not be remembered.', 'error');
-        });
-    }
-    
-    updateUIFromSettings() {
-        // Update UI elements to reflect current settings
-        if (this.apiKeyInput) {
-            this.apiKeyInput.value = this.apiKey || '';
-        }
-        if (this.modelSelect) {
-            this.modelSelect.value = this.selectedModel;
-        }
-        if (this.themeToggle) {
-            this.themeToggle.checked = this.isDarkTheme;
-        }
-        if (this.saveHistoryCheckbox) {
-            this.saveHistoryCheckbox.checked = this.saveHistory;
-        }
-        if (this.autoScrollCheckbox) {
-            this.autoScrollCheckbox.checked = this.autoScroll;
-        }
-        // Update theme on body element
-        document.body.classList.toggle('dark-theme', this.isDarkTheme);
-        // Update status
-        this.updateStatus();
-    }
-    
-    updateStatus() {
-        if (!this.apiKey) {
-            this.statusText.textContent = 'API key not set';
-            this.statusText.style.color = '#ff6b6b';
-            this.sendBtn.disabled = true;
+    // If no model selected, pick first
+    if (!this.$.modelSelect.value) this.settings.selectedModel = this.$.modelSelect.options[0]?.value || '';
+  }
+
+  // ── Chat ────────────────────────────────────────────────────
+  async send() {
+    const text = this.$.input.value.trim();
+    if (!text) return;
+    if (!this.settings.apiKey) { this.openSettings(); this.showToast('Please set your API key first', 'error'); return; }
+    if (!this.settings.selectedModel) { this.showToast('Please select a model', 'error'); return; }
+
+    // Add user message
+    this.appendBubble(text, 'user');
+    this.$.input.value = '';
+    this.resizeInput();
+
+    // Show typing
+    const typing = this.appendTyping();
+
+    try {
+      const body = {
+        model: this.settings.selectedModel,
+        messages: [...this.getChatHistory(), { role: 'user', content: text }],
+      };
+      console.log('Sending to OpenRouter:', JSON.stringify(body));
+
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.settings.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      let rawText = '';
+      try { rawText = await res.text(); } catch (_) {}
+      let data = {};
+      try { data = JSON.parse(rawText); } catch (_) {}
+
+      typing.remove();
+      console.log('OpenRouter response status:', res.status);
+
+      if (!res.ok) {
+        // Try to extract meaningful error
+        let errMsg = '';
+        if (data?.error?.message) {
+          errMsg = data.error.message;
+        } else if (typeof data?.error === 'string') {
+          errMsg = data.error;
+        } else if (data?.message) {
+          errMsg = data.message;
+        } else if (res.status === 401) {
+          errMsg = 'Invalid API key. Please check your OpenRouter API key in Settings.';
+        } else if (res.status === 429) {
+          errMsg = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (res.status === 403) {
+          errMsg = 'Forbidden — your API key may not have access to this model.';
+        } else if (res.status >= 500) {
+          errMsg = `Provider error (${res.status}). The model may be temporarily unavailable.`;
         } else {
-            this.statusText.textContent = 'Ready';
-            this.statusText.style.color = '';
-            this.sendBtn.disabled = false;
+          errMsg = `HTTP ${res.status}: ${res.statusText || 'Unknown error'}`;
         }
-    }
-    
-    showSettings() {
-        // Populate settings fields
-        this.apiKeyInput.value = this.apiKey || '';
-        this.modelSelect.value = this.selectedModel;
-        this.themeToggle.checked = this.isDarkTheme;
-        this.saveHistoryCheckbox.checked = this.saveHistory;
-        this.autoScrollCheckbox.checked = this.autoScroll;
-        
-        this.settingsModal.classList.add('show');
-    }
-    
-    hideSettings() {
-        this.settingsModal.classList.remove('show');
-    }
-    
-    toggleTheme() {
-        this.isDarkTheme = this.themeToggle.checked;
-        document.body.classList.toggle('dark-theme', this.isDarkTheme);
-        this.saveSettings();
-    }
-    
-    clearChat() {
-        if (confirm('Are you sure you want to clear the chat history?')) {
-            this.messages = [];
-            this.chatMessages.innerHTML = '';
-            if (this.saveHistory) {
-                this.saveChatHistory();
-            }
+        // Log full response for debugging
+        if (!data?.error && rawText) {
+          console.error('OpenRouter error body:', rawText.slice(0, 500));
         }
+        throw new Error(errMsg);
+      }
+
+      const reply = data?.choices?.[0]?.message?.content;
+      if (!reply) {
+        console.warn('Unexpected response shape:', JSON.stringify(data).slice(0, 500));
+        throw new Error('Empty response from model. The model may have returned no content.');
+      }
+
+      this.appendBubble(reply, 'assistant');
+    } catch (e) {
+      typing.remove();
+      console.error('API error:', e.message);
+      this.appendBubble(`Error: ${e.message}`, 'assistant');
+      this.showToast(e.message, 'error');
     }
-    
-    addMessage(content, isUser = false) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${isUser ? 'user' : 'ai'}`;
-        
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
-        contentDiv.innerHTML = this.parseMessage(content);
-        
-        const timeDiv = document.createElement('div');
-        timeDiv.className = 'message-time';
-        timeDiv.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        
-        messageDiv.appendChild(contentDiv);
-        messageDiv.appendChild(timeDiv);
-        
-        this.chatMessages.appendChild(messageDiv);
-        
-        // Add to messages array
-        this.messages.push({
-            content: content,
-            isUser: isUser,
-            timestamp: new Date().toISOString()
+
+    this.scrollBottom();
+    if (this.settings.saveHistory) this.persistHistory();
+  }
+
+  getChatHistory() {
+    return this.messages.map(m => ({ role: m.role, content: m.content }));
+  }
+
+  appendBubble(content, role) {
+    this.messages.push({ role, content });
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `<div class="msg-content">${this.escape(content)}</div><div class="msg-time">${time}</div>`;
+    this.$.messages.appendChild(div);
+    this.scrollBottom();
+    return div;
+  }
+
+  appendTyping() {
+    const div = document.createElement('div');
+    div.className = 'msg assistant typing';
+    div.innerHTML = `<div class="msg-content"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+    this.$.messages.appendChild(div);
+    this.scrollBottom();
+    return div;
+  }
+
+  scrollBottom() {
+    requestAnimationFrame(() => { this.$.messages.scrollTop = this.$.messages.scrollHeight; });
+  }
+
+  resizeInput() {
+    this.$.input.style.height = 'auto';
+    this.$.input.style.height = Math.min(this.$.input.scrollHeight, 120) + 'px';
+  }
+
+  clearChat() {
+    if (!confirm('Clear all messages?')) return;
+    this.messages = [];
+    this.$.messages.innerHTML = '';
+    chrome.storage.local.remove('chatHistory');
+  }
+
+  // ── History Persistence ─────────────────────────────────────
+  async loadHistory() {
+    try {
+      const data = await chrome.storage.local.get('chatHistory');
+      if (data.chatHistory) {
+        this.messages = JSON.parse(data.chatHistory);
+        this.$.messages.innerHTML = '';
+        this.messages.forEach(m => {
+          const div = document.createElement('div');
+          div.className = `msg ${m.role}`;
+          const time = m.time || '';
+          div.innerHTML = `<div class="msg-content">${this.escape(m.content)}</div><div class="msg-time">${time}</div>`;
+          this.$.messages.appendChild(div);
         });
-        
-        // Save history if enabled
-        if (this.saveHistory) {
-            this.saveChatHistory();
-        }
-        
-        // Auto-scroll
-        if (this.autoScroll) {
-            this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-        }
-        
-        return messageDiv;
-    }
-    
-    parseMessage(text) {
-        // Simple markdown-like parsing
-        // Convert URLs to links
-        text = text.replace(
-            /(https?:\/\/[^\s]+)/g,
-            '<a href="$1" target="_blank" rel="noopener">$1</a>'
-        );
-        
-        // Convert code blocks
-        text = text.replace(
-            /```([\s\S]*?)```/g,
-            '<pre><code>$1</code></pre>'
-        );
-        
-        // Convert inline code
-        text = text.replace(
-            /`([^`]+)`/g,
-            '<code>$1</code>'
-        );
-        
-        // Convert line breaks
-        text = text.replace(/\n/g, '<br>');
-        
-        return text;
-    }
-    
-    async sendMessage() {
-        const userText = this.userInput.value.trim();
-        if (!userText && !this.fileAttachInput.files.length) return;
-        
-        // Disable input while sending
-        this.userInput.disabled = true;
-        this.sendBtn.disabled = true;
-        this.statusText.textContent = 'Sending...';
-        
-        try {
-            // Add user message to chat
-            this.addMessage(userText, true);
-            this.userInput.value = '';
-            
-            // Show typing indicator
-            const typingIndicator = this.showTypingIndicator();
-            
-            // Prepare message content for API
-            let content = [{ type: "text", text: userText }];
-            
-            // Handle file attachment
-            if (this.fileAttachInput.files.length) {
-                const file = this.fileAttachInput.files[0];
-                const contentType = file.type;
-                
-                if (contentType.startsWith('image/')) {
-                    // Handle image
-                    const base64 = await this.fileToBase64(file);
-                    content.push({
-                        type: "image_url",
-                        image_url: { url: base64 }
-                    });
-                } else if (contentType === 'text/plain' || 
-                          contentType.includes('json') || 
-                          contentType.includes('xml') ||
-                          contentType.includes('html') ||
-                          contentType.includes('css') ||
-                          contentType.includes('javascript') ||
-                          contentType.includes('typescript')) {
-                    // Handle text files
-                    const text = await this.fileToText(file);
-                    content[0].text += `\n\nAttached File Content:\n${text}`;
-                }
-                // Reset file input
-                this.fileAttachInput.value = '';
-            }
-            
-            // Call OpenRouter API
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': window.location.origin,
-                    'X-Title': 'OpenRouter AI Chat Extension'
-                },
-                body: JSON.stringify({
-                    model: this.selectedModel,
-                    messages: [{ role: 'user', content: content }],
-                    temperature: 0.7,
-                    max_tokens: 1000
-                })
-            });
-            
-            // Remove typing indicator
-            typingIndicator.remove();
-            
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.choices && data.choices.length > 0) {
-                const aiReply = data.choices[0].message.content;
-                this.addMessage(aiReply, false);
-            } else {
-                throw new Error('No response from AI');
-            }
-        } catch (error) {
-            console.error('Error sending message:', error);
-            this.addMessage(`Error: ${error.message}`, false);
-            this.showToast(`Failed to send message: ${error.message}`, 'error');
-        } finally {
-            // Re-enable input
-            this.userInput.disabled = false;
-            this.sendBtn.disabled = !this.apiKey;
-            this.userInput.focus();
-            this.updateStatus();
-        }
-    }
-    
-    showTypingIndicator() {
-        const typingDiv = document.createElement('div');
-        typingDiv.className = 'message ai typing-indicator';
-        typingDiv.innerHTML = `
-            <div class="message-content">
-                <span>AI is thinking</span>
-                <div class="typing-indicator">
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                </div>
-            </div>
-        `;
-        this.chatMessages.appendChild(typingDiv);
-        if (this.autoScroll) {
-            this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-        }
-        return typingDiv;
-    }
-    
-    fileToBase64(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-    }
-    
-    fileToText(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsText(file);
-        });
-    }
-    
-    attachFile() {
-        // File input change handler - actual processing happens in sendMessage
-        if (this.fileAttachInput.files.length) {
-            const file = this.fileAttachInput.files[0];
-            // Show feedback that file is attached
-            this.statusText.textContent = `Attached: ${file.name}`;
-            setTimeout(() => {
-                this.updateStatus();
-            }, 2000);
-        }
-    }
-    
-    handleKeyDown(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            this.sendMessage();
-        }
-        // Allow Shift+Enter for new line
-    }
-    
-    async saveChatHistory() {
-        try {
-            await chrome.storage.local.set({ 'openrouterChatHistory': JSON.stringify(this.messages) });
-        } catch (e) {
-            console.error('Failed to save chat history:', e);
-            this.showToast('Failed to save chat history', 'error');
-        }
-    }
-    
-    async loadChatHistory() {
-        try {
-            const result = await chrome.storage.local.get(['openrouterChatHistory']);
-            const history = result.openrouterChatHistory ? JSON.parse(result.openrouterChatHistory) : [];
-            this.messages = history;
-            this.renderChatHistory();
-        } catch (e) {
-            console.error('Failed to load chat history:', e);
-            this.messages = [];
-        }
-    }
-    
-    renderChatHistory() {
-        this.chatMessages.innerHTML = '';
-        this.messages.forEach(msg => {
-            this.addMessage(msg.content, msg.isUser);
-        });
-        // Scroll to bottom
-        if (this.autoScroll && this.messages.length > 0) {
-            setTimeout(() => {
-                this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-            }, 100);
-        }
-    }
-    
-    populateModelSelector() {
-        // Request models from background service worker
-        chrome.runtime.sendMessage({
-            action: 'getModelList'
-        }).then(response => {
-            const models = response.models || [];
-            
-            // Clear and repopulate
-            this.modelSelect.innerHTML = '';
-            
-            // Separate free and paid models
-            const freeModels = models.filter(m => m.id.includes(':free'));
-            const paidModels = models.filter(m => !m.id.includes(':free'));
-            
-            // Add free models group
-            if (freeModels.length > 0) {
-                const freeGroup = document.createElement('optgroup');
-                freeGroup.label = 'Free Models';
-                freeModels.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model.id;
-                    option.textContent = model.name || model.id;
-                    freeGroup.appendChild(option);
-                });
-                this.modelSelect.appendChild(freeGroup);
-            }
-            
-            // Add paid models group
-            if (paidModels.length > 0) {
-                const paidGroup = document.createElement('optgroup');
-                paidGroup.label = 'Paid Models';
-                paidModels.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model.id;
-                    option.textContent = model.name || model.id;
-                    paidGroup.appendChild(option);
-                });
-                this.modelSelect.appendChild(paidGroup);
-            }
-            
-            // Set selected model
-            this.modelSelect.value = this.selectedModel;
-            
-            // Listen for changes
-            this.modelSelect.addEventListener('change', (e) => {
-                this.selectedModel = e.target.value;
-                this.updateCurrentModelDisplay();
-                this.saveSettings();
-            });
-        }).catch(error => {
-            console.error('Failed to load models from background:', error);
-            // Fallback to hardcoded models
-            this.populateModelSelectorFallback();
-        });
-    }
-    
-    populateModelSelectorFallback() {
-        // Free models from OpenRouter
-        const freeModels = [
-            { id: "meta-llama/llama-3-8b-instruct:free", name: "Llama 3 8B (Free)" },
-            { id: "meta-llama/llama-3-70b-instruct:free", name: "Llama 3 70B (Free)" },
-            { id: "mistralai/mistral-7b-instruct:free", name: "Mistral 7B (Free)" },
-            { id: "mistralai/mixtral-8x7b-instruct:free", name: "Mixtral 8x7B (Free)" },
-            { id: "google/gemma-2-9b-it:free", name: "Gemma 2 9B (Free)" },
-            { id: "google/gemma-2-27b-it:free", name: "Gemma 2 27B (Free)" },
-            { id: "microsoft/phi-3-mini-128k-instruct:free", name: "Phi-3 Mini 128K (Free)" },
-            { id: "microsoft/phi-3-medium-128k-instruct:free", name: "Phi-3 Medium 128K (Free)" }
-        ];
-        
-        // Clear and repopulate
-        this.modelSelect.innerHTML = '';
-        
-        // Add free models group
-        const freeGroup = document.createElement('optgroup');
-        freeGroup.label = 'Free Models';
-        freeModels.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.name;
-            freeGroup.appendChild(option);
-        });
-        this.modelSelect.appendChild(freeGroup);
-        
-        // Add paid models group (for reference)
-        const paidGroup = document.createElement('optgroup');
-        paidGroup.label = 'Popular Paid Models';
-        const paidModels = [
-            { id: "openai/gpt-4o", name: "GPT-4o" },
-            { id: "openai/gpt-4-turbo", name: "GPT-4 Turbo" },
-            { id: "anthropic/claude-3-opus", name: "Claude 3 Opus" },
-            { id: "anthropic/claude-3-sonnet", name: "Claude 3 Sonnet" },
-            { id: "anthropic/claude-3-haiku", name: "Claude 3 Haiku" }
-        ];
-        paidModels.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.name;
-            paidGroup.appendChild(option);
-        });
-        this.modelSelect.appendChild(paidGroup);
-        
-        // Set selected model
-        this.modelSelect.value = this.selectedModel;
-        
-        // Listen for changes
-        this.modelSelect.addEventListener('change', (e) => {
-            this.selectedModel = e.target.value;
-            this.updateCurrentModelDisplay();
-            this.saveSettings();
-        });
-    }
+        this.scrollBottom();
+      }
+    } catch (e) { console.error('loadHistory:', e); }
+  }
+
+  async persistHistory() {
+    try {
+      const data = this.messages.map(m => ({ ...m, time: m.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
+      await chrome.storage.local.set({ chatHistory: JSON.stringify(data) });
+    } catch (e) { console.error('persistHistory:', e); }
+  }
+
+  // ── Settings Modal ──────────────────────────────────────────
+  openSettings() {
+    this.$.apiKey.value = this.settings.apiKey || '';
+    this.$.theme.checked = this.settings.isDarkTheme;
+    this.$.saveHistory.checked = this.settings.saveHistory;
+    this.$.settings.classList.remove('hidden');
+    this.$.apiKey.focus();
+  }
+
+  closeSettings() {
+    this.$.settings.classList.add('hidden');
+  }
+
+  updateStatus() {
+    this.$.statusDot.classList.toggle('active', !!this.settings.apiKey);
+    this.$.statusDot.title = this.settings.apiKey ? 'API key set' : 'API key not set';
+    this.$.sendBtn.disabled = !this.settings.apiKey;
+  }
+
+  // ── Toast ───────────────────────────────────────────────────
+  showToast(msg, type = 'info') {
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = msg;
+    this.$.toast.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────
+  escape(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML
+      .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br>');
+  }
 }
 
-// Initialize when DOM is loaded
-document.addEventListener("DOMContentLoaded", () => {
-    window.openRouterChat = new OpenRouterChat();
-});
-
-// Handle messages from background/content scripts (for real extension)
-// We already set up the listener in init() method
+// ── Boot ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => { window.app = new ChatApp(); });
