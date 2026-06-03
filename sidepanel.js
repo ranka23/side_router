@@ -1,4 +1,4 @@
-// Sidepanel JavaScript for OpenRouter AI Chat
+// Sidepanel JavaScript for OpenRouter AI Chat Extension
 
 class OpenRouterChat {
     constructor() {
@@ -24,14 +24,12 @@ class OpenRouterChat {
         this.init().catch(err => {
             console.error('Failed to initialize OpenRouterChat:', err);
             // Fallback initialization
-            this.fallbackInit().catch(fallbackErr => {
-                console.error('Fallback initialization also failed:', fallbackErr);
-            });
+            this.fallbackInit();
         });
     }
     
     async init() {
-        // Load settings from storage
+        // Load settings from background service worker
         await this.loadSettings();
         
         // Get DOM elements
@@ -91,69 +89,42 @@ class OpenRouterChat {
         
         // Update status
         this.updateStatus();
-    }
-    
-    /**
-     * Show a toast notification
-     * @param {string} message - The message to display
-     * @param {string} type - The type of toast: 'success', 'error', 'warning', 'info'
-     * @param {number} duration - Duration in seconds (default: 3)
-     */
-    showToast(message, type = 'info', duration = 3) {
-        // Remove any existing toast with same message to prevent duplicates
-        const existingToasts = document.querySelectorAll('.toast');
-        existingToasts.forEach(toast => {
-            if (toast.querySelector('.toast-content').textContent === message) {
-                toast.remove();
+        
+        // Set up listener for settings updates from background
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            // Handle settings updates from background
+            if (message.action === 'settingsUpdate') {
+                // Apply the updated settings
+                this.apiKey = message.settings.apiKey || null;
+                this.selectedModel = message.settings.selectedModel || "meta-llama/llama-3-8b-instruct:free";
+                this.isDarkTheme = message.settings.isDarkTheme || false;
+                this.saveHistory = message.settings.saveHistory !== undefined ? message.settings.saveHistory : true;
+                this.autoScroll = message.settings.autoScroll !== undefined ? message.settings.autoScroll : true;
+                
+                // Update UI to reflect new settings
+                this.updateUIFromSettings();
+                
+                // We don't need to send a response for unsolicited messages
+                return true;
             }
+            
+            // Handle settings requests from UI (for background to respond to)
+            if (message.action === 'getSettings') {
+                sendResponse({
+                    apiKey: this.apiKey,
+                    selectedModel: this.selectedModel,
+                    isDarkTheme: this.isDarkTheme,
+                    saveHistory: this.saveHistory,
+                    autoScroll: this.autoScroll
+                });
+                return true; // Indicates we'll respond asynchronously
+            }
+            
+            return false; // Let other listeners handle the message
         });
-        
-        // Create toast element
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.setAttribute('role', 'alert');
-        
-        // Icon mapping
-        const icons = {
-            success: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-            error: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 6l12 12m0-0L6 18m12-12L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-            warning: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-            info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 10h-2v4h2v-2m0-4h2v2h-2V8m0 8h2v2h-2v-2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-        };
-        
-        toast.innerHTML = `
-            <div class="toast-icon">${icons[type] || icons.info}</div>
-            <div class="toast-content">${message}</div>
-            <div class="toast-close" aria-label="Close toast">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M6 6l12 12m0-0L6 18m12-12L6 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </div>
-        `;
-        
-        // Add to container
-        const container = document.getElementById('toast-container');
-        if (container) {
-            container.appendChild(toast);
-            
-            // Add close button functionality
-            const closeBtn = toast.querySelector('.toast-close');
-            closeBtn.addEventListener('click', () => {
-                toast.remove();
-            });
-            
-            // Auto-remove after duration
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.remove();
-                }
-            }, duration * 1000);
-        } else {
-            console.error('Toast container not found');
-        }
     }
     
-    async fallbackInit() {
+    fallbackInit() {
         // Synchronous fallback initialization
         // Use default values since we can't reliably load settings in fallback
         this.apiKey = null;
@@ -189,7 +160,7 @@ class OpenRouterChat {
         
         // Load chat history if enabled
         if (this.saveHistory) {
-            await this.loadChatHistory();
+            this.loadChatHistory();
         }
         
         // Add event listeners
@@ -219,154 +190,6 @@ class OpenRouterChat {
         
         // Update status
         this.updateStatus();
-    }
-        
-        // Add event listeners
-        this.sendBtn.addEventListener('click', this.sendMessage);
-        this.clearChatBtn.addEventListener('click', this.clearChat);
-        this.settingsBtn.addEventListener('click', this.showSettings);
-        this.userInput.addEventListener('keydown', this.handleKeyDown);
-        this.fileAttachInput.addEventListener('change', this.attachFile);
-        
-        // Settings modal listeners
-        document.getElementById('cancel-settings').addEventListener('click', this.hideSettings);
-        document.getElementById('save-settings').addEventListener('click', this.saveSettings);
-        this.themeToggle.addEventListener('change', this.toggleTheme);
-        this.saveHistoryCheckbox.addEventListener('change', (e) => {
-            this.saveHistory = e.target.checked;
-        });
-        this.autoScrollCheckbox.addEventListener('change', (e) => {
-            this.autoScroll = e.target.checked;
-        });
-        
-        // Close modal when clicking outside
-        this.settingsModal.addEventListener('click', (e) => {
-            if (e.target === this.settingsModal) {
-                this.hideSettings();
-            }
-        });
-        
-        // Update status
-        this.updateStatus();
-    }
-    
-    async populateModelSelector() {
-        try {
-            // Request models from background service worker
-            const response = await chrome.runtime.sendMessage({
-                action: 'getModelList'
-            });
-            
-            const models = response.models || [];
-            
-            // Clear and repopulate
-            this.modelSelect.innerHTML = '';
-            
-            // Separate free and paid models
-            const freeModels = models.filter(m => m.id.includes(':free'));
-            const paidModels = models.filter(m => !m.id.includes(':free'));
-            
-            // Add free models group
-            if (freeModels.length > 0) {
-                const freeGroup = document.createElement('optgroup');
-                freeGroup.label = 'Free Models';
-                freeModels.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model.id;
-                    option.textContent = model.name || model.id;
-                    freeGroup.appendChild(option);
-                });
-                this.modelSelect.appendChild(freeGroup);
-            }
-            
-            // Add paid models group
-            if (paidModels.length > 0) {
-                const paidGroup = document.createElement('optgroup');
-                paidGroup.label = 'Paid Models';
-                paidModels.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model.id;
-                    option.textContent = model.name || model.id;
-                    paidGroup.appendChild(option);
-                });
-                this.modelSelect.appendChild(paidGroup);
-            }
-            
-            // Set selected model
-            this.modelSelect.value = this.selectedModel;
-            
-            // Listen for changes
-            this.modelSelect.addEventListener('change', (e) => {
-                this.selectedModel = e.target.value;
-                this.updateCurrentModelDisplay();
-                this.saveSettings();
-            });
-        } catch (error) {
-            console.error('Failed to load models from background:', error);
-            // Fallback to hardcoded models
-            this.populateModelSelectorFallback();
-        }
-    }
-    
-    populateModelSelectorFallback() {
-        // Free models from OpenRouter
-        const freeModels = [
-            { id: "meta-llama/llama-3-8b-instruct:free", name: "Llama 3 8B (Free)" },
-            { id: "meta-llama/llama-3-70b-instruct:free", name: "Llama 3 70B (Free)" },
-            { id: "mistralai/mistral-7b-instruct:free", name: "Mistral 7B (Free)" },
-            { id: "mistralai/mixtral-8x7b-instruct:free", name: "Mixtral 8x7B (Free)" },
-            { id: "google/gemma-2-9b-it:free", name: "Gemma 2 9B (Free)" },
-            { id: "google/gemma-2-27b-it:free", name: "Gemma 2 27B (Free)" },
-            { id: "microsoft/phi-3-mini-128k-instruct:free", name: "Phi-3 Mini 128K (Free)" },
-            { id: "microsoft/phi-3-medium-128k-instruct:free", name: "Phi-3 Medium 128K (Free)" }
-        ];
-        
-        // Clear and repopulate
-        this.modelSelect.innerHTML = '';
-        
-        // Add free models group
-        const freeGroup = document.createElement('optgroup');
-        freeGroup.label = 'Free Models';
-        freeModels.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.name;
-            freeGroup.appendChild(option);
-        });
-        this.modelSelect.appendChild(freeGroup);
-        
-        // Add paid models group (for reference)
-        const paidGroup = document.createElement('optgroup');
-        paidGroup.label = 'Popular Paid Models';
-        const paidModels = [
-            { id: "openai/gpt-4o", name: "GPT-4o" },
-            { id: "openai/gpt-4-turbo", name: "GPT-4 Turbo" },
-            { id: "anthropic/claude-3-opus", name: "Claude 3 Opus" },
-            { id: "anthropic/claude-3-sonnet", name: "Claude 3 Sonnet" },
-            { id: "anthropic/claude-3-haiku", name: "Claude 3 Haiku" }
-        ];
-        paidModels.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.name;
-            paidGroup.appendChild(option);
-        });
-        this.modelSelect.appendChild(paidGroup);
-        
-        // Set selected model
-        this.modelSelect.value = this.selectedModel;
-        
-        // Listen for changes
-        this.modelSelect.addEventListener('change', (e) => {
-            this.selectedModel = e.target.value;
-            this.updateCurrentModelDisplay();
-            this.saveSettings();
-        });
-    }
-    
-    updateCurrentModelDisplay() {
-        const selectedOption = this.modelSelect.options[this.modelSelect.selectedIndex];
-        this.currentModelSpan.textContent = selectedOption ? selectedOption.textContent : this.selectedModel;
     }
     
     async loadSettings() {
@@ -418,6 +241,29 @@ class OpenRouterChat {
             console.error('Failed to send settings to background:', error);
             this.showToast('Failed to save settings. Some preferences may not be remembered.', 'error');
         });
+    }
+    
+    updateUIFromSettings() {
+        // Update UI elements to reflect current settings
+        if (this.apiKeyInput) {
+            this.apiKeyInput.value = this.apiKey || '';
+        }
+        if (this.modelSelect) {
+            this.modelSelect.value = this.selectedModel;
+        }
+        if (this.themeToggle) {
+            this.themeToggle.checked = this.isDarkTheme;
+        }
+        if (this.saveHistoryCheckbox) {
+            this.saveHistoryCheckbox.checked = this.saveHistory;
+        }
+        if (this.autoScrollCheckbox) {
+            this.autoScrollCheckbox.checked = this.autoScroll;
+        }
+        // Update theme on body element
+        document.body.classList.toggle('dark-theme', this.isDarkTheme);
+        // Update status
+        this.updateStatus();
     }
     
     updateStatus() {
@@ -709,13 +555,124 @@ class OpenRouterChat {
             }, 100);
         }
     }
+    
+    populateModelSelector() {
+        // Request models from background service worker
+        chrome.runtime.sendMessage({
+            action: 'getModelList'
+        }).then(response => {
+            const models = response.models || [];
+            
+            // Clear and repopulate
+            this.modelSelect.innerHTML = '';
+            
+            // Separate free and paid models
+            const freeModels = models.filter(m => m.id.includes(':free'));
+            const paidModels = models.filter(m => !m.id.includes(':free'));
+            
+            // Add free models group
+            if (freeModels.length > 0) {
+                const freeGroup = document.createElement('optgroup');
+                freeGroup.label = 'Free Models';
+                freeModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.name || model.id;
+                    freeGroup.appendChild(option);
+                });
+                this.modelSelect.appendChild(freeGroup);
+            }
+            
+            // Add paid models group
+            if (paidModels.length > 0) {
+                const paidGroup = document.createElement('optgroup');
+                paidGroup.label = 'Paid Models';
+                paidModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.name || model.id;
+                    paidGroup.appendChild(option);
+                });
+                this.modelSelect.appendChild(paidGroup);
+            }
+            
+            // Set selected model
+            this.modelSelect.value = this.selectedModel;
+            
+            // Listen for changes
+            this.modelSelect.addEventListener('change', (e) => {
+                this.selectedModel = e.target.value;
+                this.updateCurrentModelDisplay();
+                this.saveSettings();
+            });
+        }).catch(error => {
+            console.error('Failed to load models from background:', error);
+            // Fallback to hardcoded models
+            this.populateModelSelectorFallback();
+        });
+    }
+    
+    populateModelSelectorFallback() {
+        // Free models from OpenRouter
+        const freeModels = [
+            { id: "meta-llama/llama-3-8b-instruct:free", name: "Llama 3 8B (Free)" },
+            { id: "meta-llama/llama-3-70b-instruct:free", name: "Llama 3 70B (Free)" },
+            { id: "mistralai/mistral-7b-instruct:free", name: "Mistral 7B (Free)" },
+            { id: "mistralai/mixtral-8x7b-instruct:free", name: "Mixtral 8x7B (Free)" },
+            { id: "google/gemma-2-9b-it:free", name: "Gemma 2 9B (Free)" },
+            { id: "google/gemma-2-27b-it:free", name: "Gemma 2 27B (Free)" },
+            { id: "microsoft/phi-3-mini-128k-instruct:free", name: "Phi-3 Mini 128K (Free)" },
+            { id: "microsoft/phi-3-medium-128k-instruct:free", name: "Phi-3 Medium 128K (Free)" }
+        ];
+        
+        // Clear and repopulate
+        this.modelSelect.innerHTML = '';
+        
+        // Add free models group
+        const freeGroup = document.createElement('optgroup');
+        freeGroup.label = 'Free Models';
+        freeModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            freeGroup.appendChild(option);
+        });
+        this.modelSelect.appendChild(freeGroup);
+        
+        // Add paid models group (for reference)
+        const paidGroup = document.createElement('optgroup');
+        paidGroup.label = 'Popular Paid Models';
+        const paidModels = [
+            { id: "openai/gpt-4o", name: "GPT-4o" },
+            { id: "openai/gpt-4-turbo", name: "GPT-4 Turbo" },
+            { id: "anthropic/claude-3-opus", name: "Claude 3 Opus" },
+            { id: "anthropic/claude-3-sonnet", name: "Claude 3 Sonnet" },
+            { id: "anthropic/claude-3-haiku", name: "Claude 3 Haiku" }
+        ];
+        paidModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            paidGroup.appendChild(option);
+        });
+        this.modelSelect.appendChild(paidGroup);
+        
+        // Set selected model
+        this.modelSelect.value = this.selectedModel;
+        
+        // Listen for changes
+        this.modelSelect.addEventListener('change', (e) => {
+            this.selectedModel = e.target.value;
+            this.updateCurrentModelDisplay();
+            this.saveSettings();
+        });
+    }
 }
 
 // Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
     window.openRouterChat = new OpenRouterChat();
 });
 
 // Handle messages from background/content scripts (for real extension)
-// In a real extension, we'd use chrome.runtime.onMessage
-// For this demo, we'll just note it
+// We already set up the listener in init() method
