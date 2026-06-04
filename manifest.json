@@ -24,7 +24,7 @@
     "https://*/*"
   ],
   "side_panel": {
-    "default_path": "src/sidepanel.html"
+    "default_path": "main.html"
   },
   "background": {
     "service_worker": "src/background.js"

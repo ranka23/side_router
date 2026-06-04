@@ -1,4 +1,4 @@
-// sidepanel.js — SideRouter v4 (Complete)
+// script.js — SideRouter v4 (Complete)
 
 const bg = (action, data = {}) => new Promise((ok, fail) => {
   chrome.runtime.sendMessage({ action, ...data }, r => {
@@ -12,8 +12,8 @@ class SideRouter {
   constructor() {
     this.settings = {
       apiKey: null, selectedModel: null, isDarkTheme: null,
-      saveHistory: true, sidePosition: 'right',
-      autoApprove: false, alwaysOnTop: false,
+      saveHistory: true,
+      autoApprove: false,
     };
     this.messages = [];
     this.attachments = [];
@@ -22,24 +22,24 @@ class SideRouter {
     this.tabContent = null;
 
     this.dom = {
-      messages:     $('chat-messages'),
-      input:        $('msg-input'),
-      sendBtn:      $('btn-send'),
-      attachBtn:    $('btn-attach'),
-      fileInput:    $('file-input'),
-      modelSelect:  $('model-select-inline'),
-      settings:     $('settings-modal'),
-      apiKey:       $('api-key'),
-      keyStatus:    $('key-status'),
-      theme:        $('theme-toggle'),
-      saveHistory:  $('save-history-toggle'),
-      autoApprove:  $('auto-approve-toggle'),
-      alwaysOnTop:  $('always-on-top-toggle'),
-      proNotice:    $('pro-notice'),
-      toast:        $('toast-container'),
-      attachments:  $('input-attachments'),
-      usageBadge:   $('usage-badge'),
-      welcome:      $('welcome-screen'),
+      messages: $('chat-messages'),
+      input: $('msg-input'),
+      sendBtn: $('btn-send'),
+      attachBtn: $('btn-attach'),
+      fileInput: $('file-input'),
+      modelSelect: $('model-select-inline'),
+      settings: $('settings-modal'),
+      apiKey: $('api-key'),
+      keyStatus: $('key-status'),
+      theme: $('theme-toggle'),
+      saveHistory: $('save-history-toggle'),
+      autoApprove: $('auto-approve-toggle'),
+      proNotice: $('pro-notice'),
+      toast: $('toast-container'),
+      attachments: $('input-attachments'),
+      usageBadge: $('usage-badge'),
+      welcome: $('welcome-screen'),
+      modalClose: $('modal-close'),
     };
 
     // ── Event bindings ──
@@ -55,16 +55,13 @@ class SideRouter {
     };
     $('btn-settings').onclick = () => this.openSettings();
     $('btn-clear').onclick = () => this.clearChat();
-    $('modal-close').onclick = () => { if (this.settings.apiKey) this.closeSettings(); };
+    this.dom.modalClose.onclick = () => { if (this.settings.apiKey) this.closeSettings(); };
     this.dom.settings.onclick = e => { if (e.target === this.dom.settings && this.settings.apiKey) this.closeSettings(); };
     $('btn-validate-key').onclick = () => this.validateKey();
+    this.dom.apiKey.onkeydown = e => { if (e.key === 'Enter') this.validateKey(); };
     this.dom.theme.onchange = () => { this.settings.isDarkTheme = this.dom.theme.checked; this.applyTheme(); this.save(); };
     this.dom.saveHistory.onchange = () => { this.settings.saveHistory = this.dom.saveHistory.checked; this.save(); };
     this.dom.autoApprove.onchange = () => { this.settings.autoApprove = this.dom.autoApprove.checked; this.save(); };
-    this.dom.alwaysOnTop.onchange = () => { this.settings.alwaysOnTop = this.dom.alwaysOnTop.checked; this.save(); };
-    document.querySelectorAll('input[name="side-pos"]').forEach(r => {
-      r.onchange = () => { this.settings.sidePosition = r.value; this.save(); };
-    });
     $('btn-float').onclick = () => this.openFloating();
     this.dom.usageBadge.onclick = () => window.open('https://openrouter.ai/settings/billing', '_blank');
 
@@ -86,20 +83,18 @@ class SideRouter {
       this.dom.theme.checked = !!this.settings.isDarkTheme;
       this.dom.saveHistory.checked = this.settings.saveHistory !== false;
       this.dom.autoApprove.checked = !!this.settings.autoApprove;
-      this.dom.alwaysOnTop.checked = !!this.settings.alwaysOnTop;
-      const pos = this.settings.sidePosition || 'right';
-      const pr = document.querySelector(`input[name="side-pos"][value="${pos}"]`);
-      if (pr) pr.checked = true;
 
       await this.loadModels();
       if (this.settings.saveHistory) await this.loadHistory();
-      this.setLocked(!this.settings.apiKey);
       this.dom.apiKey.value = this.settings.apiKey || '';
 
-      if (this.settings.apiKey) {
+      if (!this.settings.apiKey) {
+        this.setLocked(true);
+        this.openSettings();
+      } else {
+        this.setLocked(false);
         this.updateStatus();
         this.fetchUsage();
-        // Silent re-validate
         bg('validateKey', { key: this.settings.apiKey }).then(v => {
           if (!v.valid) {
             this.setLocked(true);
@@ -155,9 +150,15 @@ class SideRouter {
     this.dom.theme.checked = !!this.settings.isDarkTheme;
     this.dom.saveHistory.checked = this.settings.saveHistory !== false;
     this.dom.autoApprove.checked = !!this.settings.autoApprove;
-    this.dom.alwaysOnTop.checked = !!this.settings.alwaysOnTop;
-    this.dom.keyStatus.textContent = '';
-    this.dom.keyStatus.className = 'key-status';
+    if (!this.settings.apiKey) {
+      this.dom.keyStatus.textContent = 'Please paste the API key from OpenRouter.ai to use the chat';
+      this.dom.keyStatus.className = 'key-status info';
+      this.dom.modalClose.disabled = true;
+    } else {
+      this.dom.keyStatus.textContent = '';
+      this.dom.keyStatus.className = 'key-status';
+      this.dom.modalClose.disabled = false;
+    }
     this.dom.settings.classList.remove('hidden');
     this.dom.apiKey.focus();
   }
@@ -180,6 +181,7 @@ class SideRouter {
         await this.save();
         this.setLocked(false);
         this.fetchUsage();
+        this.dom.modalClose.disabled = false;
         this.closeSettings();
         this.toast('API key connected!', 'success');
       } else {
@@ -266,7 +268,6 @@ class SideRouter {
   async fetchUsage() {
     if (!this.settings.apiKey) return;
     try {
-      // Try the auth/key endpoint for usage data
       const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
         headers: { 'Authorization': `Bearer ${this.settings.apiKey}` },
       });
@@ -274,7 +275,6 @@ class SideRouter {
         const data = await res.json();
         this.usage = data?.data || data || null;
         if (this.usage) {
-          // Display usage info
           const used = this.usage?.usage || this.usage?.total_usage || 0;
           const limit = this.usage?.limit || this.usage?.credit_limit || 0;
           if (limit > 0) {
@@ -290,7 +290,6 @@ class SideRouter {
         }
       }
     } catch (_) {}
-    // Fallback: just show connected
     this.dom.usageBadge.textContent = '✓ Connected';
     this.dom.usageBadge.className = 'usage-badge';
     this.dom.usageBadge.classList.remove('hidden');
@@ -323,7 +322,6 @@ class SideRouter {
     if (!this.settings.apiKey) { this.openSettings(); return; }
     if (!this.settings.selectedModel) { this.toast('Select a model', 'error'); return; }
 
-    // If user mentions the page, inject tab content
     let fullText = text;
     const pageRef = text.match(/\b(this page|the page|current page|webpage|website|tab|this site)\b/i);
     if (pageRef && !this.tabContent) {
@@ -336,7 +334,6 @@ class SideRouter {
       }
     }
 
-    // Build content parts
     const parts = [];
     if (fullText) parts.push({ type: 'text', text: fullText });
     for (const a of this.attachments) {
@@ -374,7 +371,6 @@ class SideRouter {
 
       if (!res.ok) {
         const msg = data?.error?.message || data?.message || this.httpMsg(res.status);
-        // Paid model / credit errors
         if (msg.match(/credit|payment|subscription|billing|insufficient|exhausted|quota|limit/i)) {
           this.dom.proNotice.classList.remove('hidden');
           throw new Error(msg + ' — Buy credits at openrouter.ai/settings/billing');
@@ -387,7 +383,6 @@ class SideRouter {
       const reply = data?.choices?.[0]?.message?.content || 'No response.';
       this.renderBubble('assistant', reply);
 
-      // If AI response contains code to execute on tab, offer to run it
       const codeMatch = reply.match(/```(?:javascript|js)\n([\s\S]*?)```/);
       if (codeMatch && this.settings.autoApprove) {
         this.executeOnTab(codeMatch[1]);
@@ -413,7 +408,7 @@ class SideRouter {
   }
 
   // ════════════════════════════════════════════════════════════
-  // RENDERING — no bubbles, markdown-style like ChatGPT/Gemini
+  // RENDERING
   // ════════════════════════════════════════════════════════════
   renderBubble(role, content, time = null, save = true) {
     const t = time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -424,7 +419,6 @@ class SideRouter {
     const isUser = role === 'user';
     const text = typeof content === 'string' ? content : JSON.stringify(content);
 
-    // Extract media URLs from text for download
     const mediaUrls = this.extractMediaUrls(text);
 
     row.innerHTML = `
@@ -446,7 +440,6 @@ class SideRouter {
       setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
     });
     row.querySelector('[data-action="download"]')?.addEventListener('click', () => {
-      // Download as text file
       const ext = text.startsWith('```') ? 'md' : 'txt';
       const blob = new Blob([text], { type: 'text/plain' });
       const a = document.createElement('a');
@@ -463,20 +456,16 @@ class SideRouter {
 
   extractMediaUrls(text) {
     const urls = [];
-    // Match image URLs
     const imgRe = /https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp|ico)\b[^\s]*/gi;
     let m;
     while ((m = imgRe.exec(text)) !== null) urls.push(m[0]);
-    // Match audio URLs
     const audioRe = /https?:\/\/[^\s]+\.(?:mp3|wav|ogg|flac|aac|m4a)\b[^\s]*/gi;
     while ((m = audioRe.exec(text)) !== null) urls.push(m[0]);
-    // Match video URLs
     const vidRe = /https?:\/\/[^\s]+\.(?:mp4|webm|mov|avi|mkv)\b[^\s]*/gi;
     while ((m = vidRe.exec(text)) !== null) urls.push(m[0]);
-    // Match file URLs
     const fileRe = /https?:\/\/[^\s]+\.(?:pdf|doc|docx|xls|xlsx|zip|rar|tar|gz|csv|json|xml)\b[^\s]*/gi;
     while ((m = fileRe.exec(text)) !== null) urls.push(m[0]);
-    return [...new Set(urls)].slice(0, 10); // deduplicate, max 10
+    return [...new Set(urls)].slice(0, 10);
   }
 
   renderTyping() {
@@ -492,23 +481,64 @@ class SideRouter {
   md(text) {
     if (!text) return '';
     let h = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
     // Code blocks with copy button
     h = h.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
       const lb = lang ? `<span class="code-lang">${lang}</span>` : '';
-      return `<div class="code-block"><button class="code-copy" onclick="const t=this;t.textContent='✓';setTimeout(()=>t.textContent='Copy',1500);navigator.clipboard.writeText(this.nextElementSibling.textContent)">Copy</button><pre>${lb}<code>${code.replace(/</g,'&lt;')}</code></pre></div>`;
+      return `<div class="code-block"><button class="code-copy" onclick="const p=this.parentElement;q=p.querySelector('code');navigator.clipboard.writeText(q.textContent);this.textContent='✓';setTimeout(()=>this.textContent='Copy',1500)">Copy</button><pre>${lb}<code>${code.replace(/</g,'&lt;')}</code></pre></div>`;
     });
-    h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-    h = h.replace(/^#{1,6}\s+(.+)$/gm, (_, t) => `<strong style="font-size:1.05em">${t}</strong><br>`);
+
+    // Inline code with copy button
+    h = h.replace(/`([^`\n]+)`/g, '<code class="inline-code" title="Click to copy">$1</code>');
+
+    // Strikethrough
+    h = h.replace(/~~([^~]+?)~~/g, '<del>$1</del>');
+
+    // Headings (distinct sizes)
+    h = h.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+    h = h.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+    h = h.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+    h = h.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+    h = h.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+    h = h.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+
+    // Bold and italic
     h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // Links
     h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    h = h.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
-    h = h.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-    h = h.replace(/^\s*\d+\.\s+(.+)$/gm, '<li>$1</li>');
-    h = h.replace(/^&gt;\s+(.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // Images
+    h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+
+    // Videos
+    h = h.replace(/!\[video\]\(([^)]+)\)/g, '<video src="$1" controls muted loop style="max-width:100%;border-radius:8px;margin:6px 0;display:block"></video>');
+
+    // Multi-line blockquotes
+    h = h.replace(/(?:^&gt;.*(?:\n|$))+/gm, match => {
+      const lines = match.split('\n').filter(l => l).map(l => l.replace(/^&gt;\s?/, '').trim());
+      return '<blockquote>' + lines.join('<br>') + '</blockquote>';
+    });
+
+    // Horizontal rule
     h = h.replace(/^---+$/gm, '<hr>');
+
+    // Lists with nested support
+    h = h.replace(/^(\s*)[-*]\s+(.+)$/gm, '<li>$2</li>');
+    h = h.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+    h = h.replace(/^(\s*)\d+\.\s+(.+)$/gm, '<li>$2</li>');
+
+    // TODO/checkboxes
+    h = h.replace(/- \[x\]\s+(.+)$/gim, '<div class="checkbox"><input type="checkbox" checked onchange="this.nextSibling.style.textDecoration=this.checked?\'line-through\':\'none\'">$1</div>');
+    h = h.replace(/- \[\s*\]\s+(.+)$/gim, '<div class="checkbox"><input type="checkbox" onchange="this.nextSibling.style.textDecoration=this.checked?\'line-through\':\'none\'">$1</div>');
+
+    // Sanitized HTML
+    h = h.replace(/&lt;(\/?)(b|strong|i|em|u|s|strike|del|ul|ol|li|p|br|div|span|h1|h2|h3|h4|h5|h6|code|pre|a)&gt;/g, '<$1$2>');
+
     h = h.replace(/\n/g, '<br>');
     h = h.replace(/(<br>){3,}/g, '<br><br>');
+
     return h;
   }
 
@@ -558,9 +588,7 @@ class SideRouter {
   async openFloating() {
     try {
       await bg('openFloatingWindow');
-      if (this.settings.alwaysOnTop) {
-        this.toast('Window opened — use OS "Always on Top" shortcut', 'info');
-      }
+      this.toast('Window opened', 'info');
     } catch (e) { this.toast('Could not open: ' + e.message, 'error'); }
   }
 
@@ -574,7 +602,12 @@ class SideRouter {
 
   scroll() { requestAnimationFrame(() => { this.dom.messages.scrollTop = this.dom.messages.scrollHeight; }); }
 
-  resize() { this.dom.input.style.height = 'auto'; this.dom.input.style.height = Math.min(this.dom.input.scrollHeight, 120) + 'px'; }
+  resize() {
+    const el = this.dom.input;
+    el.style.height = 'auto';
+    const targetHeight = Math.min(el.scrollHeight, 260);
+    el.style.height = targetHeight + 'px';
+  }
 
   clearChat() {
     if (!confirm('Clear all messages?')) return;

@@ -5,9 +5,7 @@ const defaults = {
   selectedModel: null,
   isDarkTheme: null, // null = auto-detect
   saveHistory: true,
-  sidePosition: 'right',
   autoApprove: false,
-  alwaysOnTop: false,
 };
 
 let settings = { ...defaults };
@@ -158,7 +156,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       case 'openFloatingWindow': {
         try {
-          const url = chrome.runtime.getURL('sidepanel.html?mode=floating');
+          const url = chrome.runtime.getURL('main.html?mode=floating');
           const win = await chrome.windows.create({
             url, type: 'popup', width: 440, height: 720, focused: true,
           });
@@ -181,7 +179,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await loadSettings();
-  await chrome.sidePanel.setOptions({ path: 'sidepanel.html', enabled: true });
+  chrome.sidePanel.setOptions({ path: 'main.html', enabled: true }).catch(() => {});
   fetchModels();
 });
 

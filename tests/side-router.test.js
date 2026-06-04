@@ -22,6 +22,10 @@ const makeEl = (id) => {
     querySelector: () => null, querySelectorAll: () => [],
     selectedOptions: [], options: [], parentElement: { label: '' },
   };
+  Object.defineProperty(el, 'disabled', {
+    get() { return el._disabled; },
+    set(v) { el._disabled = v; },
+  });
   Object.defineProperty(el, 'innerHTML', {
     get() { return el._innerHTML; },
     set(v) { el._innerHTML = v; },
@@ -47,7 +51,7 @@ global.AbortSignal = global.AbortSignal || { timeout: function timeout(ms) { ret
 global.FileReader = global.FileReader || class FileReader { readAsDataURL() { this.onload && this.onload({ target: { result: 'data:test;base64,abc' } }); } };
 
 // ── Load SideRouter via Function constructor ────────────────
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'script.js'), 'utf8');
 const cleanSrc = src.replace(/document\.addEventListener\('DOMContentLoaded'[\s\S]*$/, '');
 const SideRouter = new Function(cleanSrc + '\nreturn SideRouter;')();
 assert(typeof SideRouter === 'function', 'SideRouter loaded via Function constructor');
@@ -62,9 +66,7 @@ const app = new SideRouter();
 assert(app.settings !== null, 'Settings initialized');
 assert(app.settings.isDarkTheme === null, 'isDarkTheme defaults to null (auto)');
 assert(app.settings.saveHistory === true, 'saveHistory defaults true');
-assert(app.settings.sidePosition === 'right', 'sidePosition defaults right');
 assert(app.settings.autoApprove === false, 'autoApprove defaults false');
-assert(app.settings.alwaysOnTop === false, 'alwaysOnTop defaults false');
 assert(Array.isArray(app.messages), 'messages is array');
 assert(Array.isArray(app.attachments), 'attachments is array');
 
@@ -73,9 +75,9 @@ process.stdout.write('\nUnit: Markdown Parser\n');
 assert(app.md('') === '', 'Empty string');
 assert(app.md('Hello world') === 'Hello world', 'Plain text');
 assert(app.md('**bold**').includes('<strong>bold</strong>'), 'Bold');
-assert(app.md('`code`').includes('<code>code</code>'), 'Inline code');
+assert(app.md('`code`').includes('inline-code'), 'Inline code');
 assert(app.md('[link](https://x.com)').includes('<a href="https://x.com"'), 'Links');
-assert(app.md('# H1').includes('<strong'), 'Headers');
+assert(app.md('# H1').includes('<h1>'), 'Headers');
 assert(app.md('- item').includes('<li>'), 'Lists');
 assert(app.md('```js\nconst x=1;\n```').includes('code-block'), 'Code blocks');
 assert(app.md('<script>').includes('&lt;script&gt;'), 'XSS prevention');
