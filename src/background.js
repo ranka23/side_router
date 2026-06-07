@@ -1,19 +1,25 @@
 // background.js — SideRouter v4 (Complete)
 
+// Default settings stored in Chrome storage
 const defaults = {
   apiKey: null,
   selectedModel: null,
   isDarkTheme: null, // null = auto-detect
   saveHistory: true,
   autoApprove: false,
+  aiName: 'ASSISTANT',
+  rememberedPermissions: [], // Stored as array, converted to Set in frontend
 };
 
-let settings = { ...defaults };
-let modelsCache = null;
-let modelsCacheTime = 0;
-const CACHE_TTL = 30 * 60 * 1000;
+let settings = { ...defaults };              // In-memory settings cache
+let modelsCache = null;                      // Cached models to avoid repeated API calls
+let modelsCacheTime = 0;                     // Timestamp for cache expiration
+const CACHE_TTL = 30 * 60 * 1000;          // 30 minutes cache
 
-// ── Storage ──────────────────────────────────────────────────
+/**
+ * Load settings from Chrome storage into memory.
+ * Called on extension startup and installation.
+ */
 async function loadSettings() {
   try {
     const data = await chrome.storage.local.get(Object.keys(defaults));
@@ -23,6 +29,10 @@ async function loadSettings() {
   } catch (e) { console.error('loadSettings:', e); }
 }
 
+/**
+ * Save settings to Chrome storage.
+ * Merges updates into existing settings.
+ */
 async function saveSettings(updates) {
   try {
     Object.assign(settings, updates);
@@ -55,7 +65,8 @@ async function fetchModels() {
 
     // Auto-select first free model if none selected
     if (!settings.selectedModel && free.length > 0) {
-      settings.selectedModel = free[0].id;
+      const freeDefault = free.find(m => m.id === "openrouter/free");
+      settings.selectedModel = freeDefault ? freeDefault.id : free[0].id;
       await saveSettings({ selectedModel: settings.selectedModel });
     }
     return modelsCache;
@@ -115,6 +126,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse(result);
         break;
       }
+      case 'getPageHeadings': {
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(h => ({
+              level: parseInt(h.tagName[1]),
+              text: h.innerText?.trim() || '',
+            })).filter(h => h.text).slice(0, 30),
+          });
+          sendResponse({ success: true, headings: results[0]?.result || [] });
+        } catch (e) { sendResponse({ success: false, error: e.message }); }
+        break;
+      }
       case 'getActiveTabContent': {
         try {
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -139,16 +165,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         break;
       }
       case 'executeOnTab': {
+        if (!settings.autoApprove) {
+          sendResponse({ success: false, error: 'Auto-approve disabled' });
+          break;
+        }
         try {
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
           if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
+          const dangerous = /(document\.cookie|localStorage|sessionStorage|eval|Function|import\(|fetch|XMLHttpRequest|navigator\.sendBeacon|window\.location)/;
+          if (dangerous.test(msg.code)) {
+            sendResponse({ success: false, error: 'Blocked: potentially dangerous code' });
+            break;
+          }
           const results = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            args: [msg.code],
-            func: (code) => {
-              try { return { ok: true, result: eval(code) }; }
+            func: (userCode) => {
+              try { return { ok: true, result: (0, eval)('(function(){' + userCode + '})()') }; }
               catch (e) { return { ok: false, error: e.message }; }
             },
+            args: [msg.code],
+            world: 'MAIN',
           });
           sendResponse({ success: true, result: results[0]?.result });
         } catch (e) { sendResponse({ success: false, error: e.message }); }
@@ -171,10 +207,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true;
 });
 
-// ── Side Panel Open ───────────────────────────────────────────
+// ── Side Panel Open ──────────────────────────────────────────
 chrome.action.onClicked.addListener(async (tab) => {
-  try { await chrome.sidePanel.open({ windowId: tab.windowId }); }
-  catch (e) { console.error('open side panel:', e); }
+  try {
+    await chrome.sidePanel.open({ windowId: tab.windowId });
+  } catch (e) { console.error('open side panel:', e); }
 });
 
 chrome.runtime.onInstalled.addListener(async () => {

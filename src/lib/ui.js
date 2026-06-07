@@ -1,0 +1,318 @@
+// src/lib/ui.js - UI rendering and DOM manipulation
+function UIModule(app) {
+  var _amp = function (c) {
+    if (c === "&") return "&" + "amp;";
+    if (c === "<") return "&" + "lt;";
+    if (c === ">") return "&" + "gt;";
+    if (c === '"') return "&" + "quot;";
+    return c;
+  };
+  const escapeHtml = (str) => {
+    return String(str).replace(/[&<>"]/g, _amp);
+  };
+
+  const toast = (msg, type) => {
+    if (!type) type = "info";
+    while (app.dom.toast.children.length > 4) app.dom.toast.removeChild(app.dom.toast.firstChild);
+    const t = document.createElement("div");
+    t.className = "toast " + type;
+    t.textContent = msg;
+    app.dom.toast.appendChild(t);
+    setTimeout(function () {
+      t.style.opacity = "0";
+      setTimeout(function () {
+        if (t.parentNode) t.remove();
+      }, 300)
+    }, 3500);
+  };
+
+  const scroll = function () {
+    requestAnimationFrame(function () {
+      app.dom.messages.scrollTop = app.dom.messages.scrollHeight;
+    });
+  };
+
+  const resize = function () {
+    var el = app.dom.input;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 260) + "px";
+  };
+
+  const scrollToBottom = function () {
+    app.dom.messages.scrollTop = app.dom.messages.scrollHeight;
+    app.dom.scrollBtn.classList.add("hidden");
+  };
+
+  const checkScrollPosition = function () {
+    var st = app.dom.messages.scrollTop;
+    var sh = app.dom.messages.scrollHeight;
+    var ch = app.dom.messages.clientHeight;
+    app.dom.scrollBtn.classList.toggle("hidden", sh - st - ch < 50);
+  };
+
+  const adjustScrollAfterMessageRemoval = function () {
+    var st = app.dom.messages.scrollTop;
+    var sh = app.dom.messages.scrollHeight;
+    var ch = app.dom.messages.clientHeight;
+    if (sh - st - ch >= 50) {
+      app.dom.scrollBtn.classList.remove("hidden");
+    }
+  };
+
+  const updateSendIcon = function () {
+    var running = app.dom.sendBtn.classList.contains("running");
+    var sendIcon = app.dom.sendBtn.querySelector(".icon-send");
+    var stopIcon = app.dom.sendBtn.querySelector(".icon-stop");
+    if (sendIcon) sendIcon.classList.toggle("hidden", running);
+    if (stopIcon) stopIcon.classList.toggle("hidden", !running);
+  };
+
+  const setRunning = function (running) {
+    app.isRunning = running;
+    if (running) {
+      app.dom.sendBtn.classList.add("running");
+      app.dom.sendBtn.disabled = true;
+      app.dom.input.disabled = true;
+    } else {
+      app.dom.sendBtn.classList.remove("running");
+      // Only enable sendBtn if there's an API key (updateStatus manages this)
+      var hasKey = !!app.settings.apiKey;
+      app.dom.sendBtn.disabled = !hasKey;
+      app.dom.input.disabled = false;
+    }
+  };
+
+  const httpMsg = function (s) {
+    var m = {
+      401: "Invalid API key",
+      429: "Rate limited — wait a moment",
+      403: "Forbidden",
+      404: "Model not found"
+    };
+    return m[s] || "HTTP " + s;
+  };
+
+  const getMediaType = function (url) {
+    var u = url.toLowerCase();
+    if (/\.(png|jpe?g|gif|webp|svg|bmp|ico)(\?|$)/i.test(u)) return "image";
+    if (/\.(mp3|wav|ogg|flac|aac|m4a)(\?|$)/i.test(u)) return "audio";
+    if (/\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(u)) return "video";
+    return "file";
+  };
+
+  const extractMediaUrls = function (text) {
+    var urls = [];
+    var patterns = [
+      /https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|svg|bmp|ico)\b[^\s]*/gi,
+      /https?:\/\/[^\s]+\.(?:mp3|wav|ogg|flac|aac|m4a)\b[^\s]*/gi,
+      /https?:\/\/[^\s]+\.(?:mp4|webm|mov|avi|mkv)\b[^\s]*/gi,
+      /https?:\/\/[^\s]+\.(?:pdf|doc|docx|xls|xlsx|zip|rar|tar|gz|csv|json|xml)\b[^\s]*/gi
+    ];
+    for (var pi = 0; pi < patterns.length; pi++) {
+      var m;
+      while ((m = patterns[pi].exec(text)) !== null) urls.push(m[0]);
+    }
+    return [...new Set(urls)].slice(0, 10);
+  };
+
+  const buildMediaHtml = function (urls) {
+    if (!urls.length) return "";
+    var items = urls.map(function (url) {
+      var type = getMediaType(url);
+      var name = decodeURIComponent(url.split("/").pop().split("?")[0] || "file");
+      var safeName = escapeHtml(name);
+      var preview = "";
+      if (type === "image") {
+        preview = "<img src=\"" + url + "\" alt=\"" + safeName + "\" loading=\"lazy\" class=\"media-preview-img\">";
+      } else if (type === "audio") {
+        preview = "<audio src=\"" + url + "\" controls class=\"media-preview-audio\"></audio>";
+      } else if (type === "video") {
+        preview = "<video src=\"" + url + "\" controls muted loop class=\"media-preview-video\"></video>";
+      }
+      return "<div class=\"media-item\" data-url=\"" + url + "\" data-name=\"" + safeName + "\">" +
+        preview +
+        "<div class=\"media-item-footer\">" +
+        "<span class=\"media-item-name\" title=\"" + safeName + "\">" + safeName + "</span>" +
+        "<button class=\"media-download-btn\" data-action=\"download-media\" title=\"Download\">" +
+        "<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+        "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+        "</svg>" +
+        "</button>" +
+        "</div>" +
+        "</div>";
+    }).join("");
+    return "<div class=\"msg-media-grid\">" + items + "</div>";
+  };
+
+  const downloadMedia = async function (url, filename) {
+    try {
+      var res = await fetch(url, { mode: "cors" });
+      if (!res.ok) throw new Error("Fetch failed");
+      var blob = await res.blob();
+      var blobUrl = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      toast("Downloaded: " + filename, "success");
+    } catch (e) {
+      window.open(url, "_blank");
+      toast("Opened in new tab (CORS blocked download)", "info");
+    }
+  };
+
+  const renderTyping = function () {
+    var row = document.createElement("div");
+    row.className = "msg-row assistant thinking";
+    var aiName = app.settings.aiName || "ASSISTANT";
+    row.innerHTML = "<div class=\"msg-role assistant\">" + aiName + "</div><div class=\"typing-dots\"><div class=\"dot\"></div><div class=\"dot\"></div><div class=\"dot\"></div></div>";
+    app.dom.messages.appendChild(row);
+    scroll();
+    return row;
+  };
+
+  const renderThinking = function (reasoning) {
+    var row = document.createElement("div");
+    row.className = "msg-row thinking";
+    var safe = String(reasoning);
+    safe = safe.replace(/[&<>]/g, function (c) {
+      if (c === "&") return "&" + "amp;";
+      if (c === "<") return "&" + "lt;";
+      if (c === ">") return "&" + "gt;";
+      return c;
+    });
+    var aiName = app.settings.aiName || "ASSISTANT";
+    row.innerHTML = "<div class=\"msg-role thinking\">" + aiName + " (thinking)</div>" +
+      "<div class=\"msg-content md-content thinking-content\">" + window.md(safe) + "</div>";
+    app.dom.messages.appendChild(row);
+    scroll();
+    setTimeout(function () {
+      if (row.parentNode) {
+        row.remove();
+        checkScrollPosition();
+      }
+    }, 5000);
+    return row;
+  };
+
+  const renderBubble = function (role, content, time, save) {
+    if (time === undefined || time === null) time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (save === undefined) save = true;
+    var msg = { role: role, content: content, time: time };
+    if (save) {
+      if (role === "assistant" && app._pendingAnnotations) {
+        msg.annotations = app._pendingAnnotations;
+        app._pendingAnnotations = null;
+      }
+      app.messages.push(msg);
+    }
+    var row = document.createElement("div");
+    row.className = "msg-row " + role;
+    var isUser = role === "user";
+    var text = typeof content === "string" ? content : JSON.stringify(content);
+    var mediaUrls = extractMediaUrls(text);
+    var safeAiName = escapeHtml(app.settings.aiName || "ASSISTANT");
+    var safeTime = escapeHtml(time);
+    var actionsHtml = "<div class=\"msg-actions\">" +
+      "<button class=\"msg-btn-icon\" data-action=\"copy\" title=\"Copy\">" +
+      "<svg class=\"icon-copy-svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+      "<rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\" ry=\"2\"/><path d=\"M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1\"/>" +
+      "</svg>" +
+      "<span class=\"copy-feedback hidden\">&#10003;</span>" +
+      "</button>";
+    if (!isUser) {
+      actionsHtml += "<button class=\"msg-btn-icon\" data-action=\"download\" title=\"Download\">" +
+        "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+        "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+        "</svg>" +
+        "</button>";
+    }
+    actionsHtml += "</div>";
+    var mediaHtml = mediaUrls.length ? buildMediaHtml(mediaUrls) : "";
+    row.innerHTML = "<div class=\"msg-role " + (isUser ? "user" : "assistant") + "\">" + (isUser ? "You" : safeAiName) + " <span class=\"msg-time-inline\">" + safeTime + "</span></div>" +
+      "<div class=\"msg-content md-content\">" + window.md(text) + "</div>" +
+      mediaHtml +
+      actionsHtml;
+    var copyBtn = row.querySelector('[data-action="copy"]');
+    if (copyBtn) {
+      copyBtn.addEventListener("click", function () {
+        navigator.clipboard.writeText(text);
+        copyBtn.classList.add("copying");
+        setTimeout(function () { copyBtn.classList.remove("copying"); }, 1500);
+        toast("Copied!", "success");
+      });
+    }
+    row.querySelectorAll('[data-action="code-copy"]').forEach(function (btn) {
+      if (btn) {
+        btn.addEventListener("click", function () {
+          var codeEl = btn.parentElement ? btn.parentElement.querySelector("code") : null;
+          if (codeEl) {
+            navigator.clipboard.writeText(codeEl.textContent);
+            btn.textContent = "Copied!";
+            btn.classList.add("copied");
+            setTimeout(function () {
+              btn.textContent = "Copy";
+              btn.classList.remove("copied");
+            }, 1500);
+          }
+        });
+      }
+    });
+    row.querySelectorAll(".inline-code").forEach(function (el) {
+      if (el) {
+        el.addEventListener("click", function () {
+          navigator.clipboard.writeText(el.textContent);
+        });
+        el.title = "Click to copy";
+      }
+    });
+    var downloadBtn = row.querySelector('[data-action="download"]');
+    if (downloadBtn) {
+      downloadBtn.addEventListener("click", function () {
+        var ext = text.startsWith("```") ? "md" : "txt";
+        var blob = new Blob([text], { type: "text/plain" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "response-" + Date.now() + "." + ext;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast("Downloaded!", "success");
+      });
+    }
+    row.querySelectorAll('[data-action="download-media"]').forEach(function (btn) {
+      if (btn) {
+        btn.addEventListener("click", function () {
+          var item = btn.closest(".media-item");
+          var url = item ? item.dataset.url : null;
+          var name = item ? (item.dataset.name || "file") : "file";
+          if (url) downloadMedia(url, name);
+        });
+      }
+    });
+    app.dom.messages.appendChild(row);
+    return row;
+  };
+
+  return {
+    escapeHtml: escapeHtml,
+    toast: toast,
+    scroll: scroll,
+    resize: resize,
+    scrollToBottom: scrollToBottom,
+    checkScrollPosition: checkScrollPosition,
+    adjustScrollAfterMessageRemoval: adjustScrollAfterMessageRemoval,
+    updateSendIcon: updateSendIcon,
+    setRunning: setRunning,
+    httpMsg: httpMsg,
+    getMediaType: getMediaType,
+    extractMediaUrls: extractMediaUrls,
+    buildMediaHtml: buildMediaHtml,
+    downloadMedia: downloadMedia,
+    renderTyping: renderTyping,
+    renderThinking: renderThinking,
+    renderBubble: renderBubble
+  };
+}
+
+window.UIModule = UIModule;
