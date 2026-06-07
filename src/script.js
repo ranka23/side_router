@@ -110,6 +110,13 @@ class SideRouter {
     this.dom.saveHistory.onchange = function () { self.settings.saveHistory = self.dom.saveHistory.checked; self.save(); self.loadChatHistories(); };
     this.dom.autoApprove.onchange = function () { self.settings.autoApprove = self.dom.autoApprove.checked; self.save(); };
     this.dom.aiName.onchange = function () { self.settings.aiName = self.dom.aiName.value.trim() || "ASSISTANT"; self.save(); };
+    if (this.dom.defaultModelSelect) {
+      this.dom.defaultModelSelect.onchange = function () {
+        self.settings.defaultModel = self.dom.defaultModelSelect.value || null;
+        self.save();
+        self.toast("Default model updated", "success");
+      };
+    }
     this.dom.usageBadge.onclick = function () { window.open("https://openrouter.ai/settings/billing", "_blank"); };
     $("perm-deny").onclick = function () { self.denyPermission(); };
     $("perm-deny").onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); self.denyPermission(); } };
@@ -187,16 +194,23 @@ class SideRouter {
           await this.loadChatHistories();
         }
       }
-      window.addEventListener("beforeunload", function () { self.archiveCurrentChat(); });
+      window.addEventListener("beforeunload", function () {
+        self.persistHistory();
+        self.archiveCurrentChat();
+      });
+      // On tab switch: persist current chat and reload it (don't clear messages)
       if (chrome.tabs && chrome.tabs.onActivated) {
         chrome.tabs.onActivated.addListener(async function (activeInfo) {
           var oldTabId = self.tabId;
           self.tabId = activeInfo.tabId;
-          if (self.tabId !== oldTabId && self.settings.saveHistory) {
-            self.messages = [];
-            self.dom.messages.innerHTML = "";
-            await self.loadHistory();
-            await self.loadChatHistories();
+          if (self.tabId !== oldTabId) {
+            // Persist current state before any reload
+            await self.persistHistory();
+            // Keep the same messages — don't clear them
+            // Just ensure chat histories are fresh for the history popup
+            if (self.settings.saveHistory) {
+              await self.loadChatHistories();
+            }
           }
         });
       }

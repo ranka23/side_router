@@ -8,6 +8,7 @@ function SettingsModule(app) {
     autoApprove: false,
     aiName: "ASSISTANT",
     rememberedPermissions: [],
+    defaultModel: null,
   };
 
   const load = async () => {
@@ -50,6 +51,8 @@ function SettingsModule(app) {
     app.dom.aiName.value = app.settings.aiName || "ASSISTANT";
     app.dom.keyStatus.textContent = "";
     app.dom.keyStatus.className = "key-status";
+    // Populate default model selector
+    populateDefaultModelSelect();
     app.dom.settings.classList.remove("hidden");
     document.addEventListener("keydown", app._focusTrapHandler);
     document.addEventListener("keydown", app._escKeyHandler);
@@ -264,11 +267,31 @@ function SettingsModule(app) {
     } catch (_) {}
   };
 
+  const populateDefaultModelSelect = () => {
+    const sel = app.dom.defaultModelSelect;
+    if (!sel) return;
+    // Save current options
+    sel.innerHTML = '<option value="">Use most recent model</option>';
+    // Copy from the main model select
+    if (app.dom.modelSelect) {
+      const options = app.dom.modelSelect.querySelectorAll('option');
+      options.forEach(opt => {
+        const newOpt = document.createElement('option');
+        newOpt.value = opt.value;
+        newOpt.textContent = opt.textContent;
+        sel.appendChild(newOpt);
+      });
+    }
+    // Set current value
+    sel.value = app.settings.defaultModel || '';
+  };
+
   return {
     load, save, applyTheme, autoDetectTheme,
     openSettings, closeSettings, validateKey,
     loadModels, populateSelect, updateContextPercent, checkPaidModel,
     fetchUsage, showWelcome, setLocked, updateStatus, connectFromWelcome, getTabId,
+    populateDefaultModelSelect
   };
 }
 

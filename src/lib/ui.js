@@ -100,6 +100,53 @@ function UIModule(app) {
     return "file";
   };
 
+  const getFileIconChar = function (type, mime) {
+    if (type === "image") return "\uD83D\uDCF7";
+    if (type === "audio") return "\uD83C\uDFB5";
+    if (type === "video") return "\uD83C\uDFAC";
+    if (mime === "application/pdf") return "\uD83D\uDCC4";
+    return "\uD83D\uDCCE";
+  };
+
+  const formatFileSize = function (bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  };
+
+  const getFileTypeLabel = function (type, mime) {
+    if (type === "image") return "Image";
+    if (type === "audio") return "Audio";
+    if (type === "video") return "Video";
+    if (mime === "application/pdf") return "PDF";
+    return "File";
+  };
+
+  const downloadFileAttachment = async function (name, mime, data) {
+    try {
+      var blob;
+      if (data && data.startsWith("data:")) {
+        var parts = data.split(",");
+        var byteStr = atob(parts[1] || "");
+        var ab = new ArrayBuffer(byteStr.length);
+        var ia = new Uint8Array(ab);
+        for (var i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+        blob = new Blob([ab], { type: mime || "application/octet-stream" });
+      } else {
+        blob = new Blob([data || ""], { type: mime || "text/plain" });
+      }
+      var blobUrl = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = name || "file";
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      toast("Downloaded: " + name, "success");
+    } catch (e) {
+      toast("Could not download: " + e.message, "error");
+    }
+  };
+
   const extractMediaUrls = function (text) {
     var urls = [];
     var patterns = [
@@ -230,8 +277,31 @@ function UIModule(app) {
     }
     actionsHtml += "</div>";
     var mediaHtml = mediaUrls.length ? buildMediaHtml(mediaUrls) : "";
+    // Render file attachment cards for user messages
+    var fileAttachmentsHtml = "";
+    if (isUser && app._pendingAttachments && app._pendingAttachments.length) {
+      fileAttachmentsHtml = app._pendingAttachments.map(function (a) {
+        var icon = getFileIconChar(a.type, a.mime);
+        var name = escapeHtml(a.name);
+        var size = (a.size || 0) > 0 ? formatFileSize(a.size) : "";
+        var typeLabel = getFileTypeLabel(a.type, a.mime);
+        return "<div class=\"file-attachment\">" +
+          "<span class=\"file-icon\">" + icon + "</span>" +
+          "<span class=\"file-info\">" +
+          "<span class=\"file-name\">" + name + "</span>" +
+          "<span class=\"file-meta\">" + typeLabel + (size ? " \u00B7 " + size : "") + "</span>" +
+          "</span>" +
+          "<button class=\"file-download-btn\" data-action=\"download-file\" title=\"Download file\">" +
+          "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+          "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+          "</svg>" +
+          "</button>" +
+          "</div>";
+      }).join("");
+    }
     row.innerHTML = "<div class=\"msg-role " + (isUser ? "user" : "assistant") + "\">" + (isUser ? "You" : safeAiName) + " <span class=\"msg-time-inline\">" + safeTime + "</span></div>" +
       "<div class=\"msg-content md-content\">" + window.md(text) + "</div>" +
+      (fileAttachmentsHtml ? "<div class=\"file-attachments\">" + fileAttachmentsHtml + "</div>" : "") +
       mediaHtml +
       actionsHtml;
     var copyBtn = row.querySelector('[data-action="copy"]');
@@ -287,6 +357,33 @@ function UIModule(app) {
           var url = item ? item.dataset.url : null;
           var name = item ? (item.dataset.name || "file") : "file";
           if (url) downloadMedia(url, name);
+        });
+      }
+    });
+    row.querySelectorAll('[data-action="download-file"]').forEach(function (btn) {
+      if (btn) {
+        btn.addEventListener("click", function () {
+          var container = btn.closest(".file-attachments") || btn.closest(".file-attachment");
+          var fileCard = btn.closest(".file-attachment");
+          if (fileCard) {
+            var name = (fileCard.querySelector(".file-name") || {}).textContent || "file";
+            // Look for file name in the pending attachments
+            var pending = app._pendingAttachments || [];
+            var match = pending.find(function (a) { return a.name === name; });
+            if (match) {
+              downloadFileAttachment(match.name, match.mime, match.data);
+            } else {
+              // Try to find it from the message data stored on the row
+              // Fallback: download from the bubble text
+              var blob = new Blob([text], { type: "text/plain" });
+              var a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = name || "file";
+              a.click();
+              URL.revokeObjectURL(a.href);
+              toast("Downloaded: " + name, "success");
+            }
+          }
         });
       }
     });

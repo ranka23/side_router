@@ -9,6 +9,7 @@ function cacheDom(app) {
     attachBtn: $("btn-attach"),
     fileInput: $("file-input"),
     modelSelect: $("model-select-inline"),
+    defaultModelSelect: $("default-model-select"),
     settings: $("settings-modal"),
     apiKey: $("api-key"),
     keyStatus: $("key-status"),

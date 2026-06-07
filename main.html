@@ -172,8 +172,18 @@
             </div>
             <p class="hint">Display name for the AI in chat</p>
           </div>
+          <div class="form-group">
+            <label for="default-model-select">Default AI Model</label>
+            <select id="default-model-select" class="default-model-select" aria-label="Select default AI model">
+              <option value="">Use most recent model</option>
+            </select>
+            <p class="hint">Model to use when starting a new chat. If empty, the last used model is preserved.</p>
+          </div>
           <div id="pro-notice" class="pro-notice hidden" role="status">
             <p>Using paid models requires credits. <a href="https://openrouter.ai/settings/billing" target="_blank" rel="noopener noreferrer">Buy credits →</a></p>
+          </div>
+          <div class="donate-link">
+            <a href="https://rzp.io/rzp/IbvR3pMx" target="_blank" rel="noopener noreferrer">❤️ Donate $1</a>
           </div>
         </div>
       </div>
@@ -187,15 +197,7 @@
       <div class="modal">
         <div class="modal-header">
           <h2 id="history-title">Chat History</h2>
-          <button class="icon-btn" id="history-close-btn" aria-label="Close history">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div id="history-actions" class="history-actions hidden">
+          <div class="modal-header-actions">
             <button class="btn btn-danger-text" id="history-clear-all-btn" aria-label="Delete all chats">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
                 <polyline points="3 6 5 6 21 6" />
@@ -205,7 +207,15 @@
               </svg>
               Clear All
             </button>
+            <button class="icon-btn" id="history-close-btn" aria-label="Close history">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
+        </div>
+        <div class="modal-body">
           <div id="history-list" class="history-list" role="list" aria-label="Chat history list"></div>
         </div>
       </div>

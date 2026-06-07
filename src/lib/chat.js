@@ -102,11 +102,62 @@ function ChatModule(app) {
     await handleSendDirect(text, app.attachments.slice());
   };
 
+  var buildFileAttachmentHtml = function (attachments) {
+    if (!attachments || !attachments.length) return "";
+    return attachments.map(function (a) {
+      var icon = getLabel(a.type, a.mime);
+      var name = escapeHtml(a.name);
+      var size = formatFileSize(a.size || 0);
+      var typeLabel = getFileTypeLabel(a.type, a.mime);
+      return "<div class=\"file-attachment\" data-name=\"" + name + "\">" +
+        "<span class=\"file-icon\">" + icon + "</span>" +
+        "<span class=\"file-info\">" +
+        "<span class=\"file-name\">" + name + "</span>" +
+        "<span class=\"file-meta\">" + typeLabel + " \u00B7 " + size + "</span>" +
+        "</span>" +
+        "<button class=\"file-download-btn\" data-action=\"download-file\" title=\"Download file\">" +
+        "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+        "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+        "</svg>" +
+        "</button>" +
+        "</div>";
+    }).join("");
+  };
+
+  var formatFileSize = function (bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  };
+
+  var getFileTypeLabel = function (type, mime) {
+    if (type === "image") return "Image";
+    if (type === "audio") return "Audio";
+    if (type === "video") return "Video";
+    if (mime === "application/pdf") return "PDF";
+    return "File";
+  };
+
+  var escapeHtml = function (str) {
+    return String(str).replace(/[&<>"]/g, function (c) {
+      if (c === "&") return "&" + "amp;";
+      if (c === "<") return "&" + "lt;";
+      if (c === ">") return "&" + "gt;";
+      if (c === '"') return "&" + "quot;";
+      return c;
+    });
+  };
+
   var handleSendDirect = async function (text, attachments) {
     var attLabel = attachments.length ? attachments.map(function (a) { return getLabel(a.type, a.mime); }).join(" ") + " (" + attachments.length + ")" : "";
     var ctxLabel = app.contextItems.length ? " [" + app.contextItems.length + " context]" : "";
     var bubbleText = [text, attLabel + ctxLabel].filter(Boolean).join(" ");
+    // Store file data for the bubble so it can render attachments
+    if (attachments.length) {
+      app._pendingAttachments = attachments.slice();
+    }
     app.renderBubble("user", bubbleText || attLabel);
+    app._pendingAttachments = null;
     app.dom.input.value = "";
     app.resize();
     app.clearAttachments();
@@ -272,7 +323,11 @@ function ChatModule(app) {
     app.scroll();
     app.setRunning(false);
     app.updateSendIcon();
-    if (app.settings.saveHistory) await app.persistHistory();
+    if (app.settings.saveHistory) {
+      await app.persistHistory();
+      // Auto-archive to chat history for crash recovery
+      await app.autoArchive();
+    }
   };
 
   var abortTask = function () {
