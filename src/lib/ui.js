@@ -147,6 +147,83 @@ function UIModule(app) {
     }
   };
 
+  const buildAnnotationHtml = function (annotations) {
+    if (!annotations || !annotations.length) return "";
+    var items = [];
+    for (var ai = 0; ai < annotations.length; ai++) {
+      var ann = annotations[ai];
+      if (!ann || !ann.type) continue;
+      var type = ann.type;
+      var data = ann.data || ann;
+      if (type === "image" || type === "image_url") {
+        var url = data.url || data.image_url || "";
+        var alt = data.alt || data.name || "Image";
+        if (!url) continue;
+        var safeAlt = escapeHtml(alt);
+        var safeUrl = escapeHtml(url);
+        items.push("<div class=\"media-item\" data-url=\"" + safeUrl + "\" data-name=\"" + safeAlt + "\">" +
+          "<img src=\"" + safeUrl + "\" alt=\"" + safeAlt + "\" loading=\"lazy\" class=\"media-preview-img\">" +
+          "<div class=\"media-item-footer\">" +
+          "<span class=\"media-item-name\" title=\"" + safeAlt + "\">" + safeAlt + "</span>" +
+          "<button class=\"media-download-btn\" data-action=\"download-media\" title=\"Download\">" +
+          "<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+          "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+          "</svg></button></div></div>");
+      } else if (type === "audio" || type === "audio_url") {
+        var url = data.url || data.audio_url || "";
+        var name = data.name || "audio";
+        if (!url) continue;
+        var safeName = escapeHtml(name);
+        var safeUrl = escapeHtml(url);
+        items.push("<div class=\"media-item\" data-url=\"" + safeUrl + "\" data-name=\"" + safeName + "\">" +
+          "<audio src=\"" + safeUrl + "\" controls class=\"media-preview-audio\"></audio>" +
+          "<div class=\"media-item-footer\">" +
+          "<span class=\"media-item-name\" title=\"" + safeName + "\">" + safeName + "</span>" +
+          "<button class=\"media-download-btn\" data-action=\"download-media\" title=\"Download\">" +
+          "<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+          "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+          "</svg></button></div></div>");
+      } else if (type === "video" || type === "video_url") {
+        var url = data.url || data.video_url || "";
+        var name = data.name || "video";
+        if (!url) continue;
+        var safeName = escapeHtml(name);
+        var safeUrl = escapeHtml(url);
+        items.push("<div class=\"media-item\" data-url=\"" + safeUrl + "\" data-name=\"" + safeName + "\">" +
+          "<video src=\"" + safeUrl + "\" controls muted loop class=\"media-preview-video\"></video>" +
+          "<div class=\"media-item-footer\">" +
+          "<span class=\"media-item-name\" title=\"" + safeName + "\">" + safeName + "</span>" +
+          "<button class=\"media-download-btn\" data-action=\"download-media\" title=\"Download\">" +
+          "<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+          "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+          "</svg></button></div></div>");
+      } else if (type === "file" || type === "document" || type === "sheet" || type === "pdf") {
+        var url = data.url || "";
+        var name = data.name || data.filename || "file";
+        var mime = data.content_type || data.mime || "";
+        var ext = name.includes(".") ? name.split(".").pop() : "";
+        var safeName = escapeHtml(name);
+        var safeExt = ext ? "." + escapeHtml(ext) : "";
+        var safeUrl = escapeHtml(url);
+        var icon = "\uD83D\uDCC4";
+        if (mime.includes("spreadsheet") || mime.includes("excel") || ext === "xls" || ext === "xlsx") icon = "\uD83D\uDCCA";
+        else if (mime.includes("pdf") || ext === "pdf") icon = "\uD83D\uDCC4";
+        else if (ext === "doc" || ext === "docx") icon = "\uD83D\uDCDD";
+        items.push("<div class=\"file-attachment\" data-url=\"" + safeUrl + "\" data-name=\"" + safeName + "\" data-mime=\"" + escapeHtml(mime) + "\">" +
+          "<span class=\"file-icon\">" + icon + "</span>" +
+          "<span class=\"file-info\">" +
+          "<span class=\"file-name\">" + safeName + "</span>" +
+          "<span class=\"file-meta\">" + escapeHtml(mime || "File") + (safeExt ? " \u00B7 " + safeExt : "") + "</span>" +
+          "</span>" +
+          "<button class=\"file-download-btn\" data-action=\"download-annotation-file\" title=\"Download file\">" +
+          "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+          "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+          "</svg></button></div>");
+      }
+    }
+    return items.length ? "<div class=\"msg-annotations\">" + items.join("") + "</div>" : "";
+  };
+
   const extractMediaUrls = function (text) {
     var urls = [];
     var patterns = [
@@ -213,33 +290,44 @@ function UIModule(app) {
     var row = document.createElement("div");
     row.className = "msg-row assistant thinking";
     var aiName = app.settings.aiName || "ASSISTANT";
-    row.innerHTML = "<div class=\"msg-role assistant\">" + aiName + "</div><div class=\"typing-dots\"><div class=\"dot\"></div><div class=\"dot\"></div><div class=\"dot\"></div></div>";
+    row.innerHTML = "<div class=\"msg-role assistant\">" + aiName + "</div><div class=\"typing-dots\"><div class=\"dot\"></div><div class=\"dot\"></div><div class=\"dot\"></div></div><span class=\"typing-label\">thinking</span>";
     app.dom.messages.appendChild(row);
     scroll();
     return row;
   };
 
   const renderThinking = function (reasoning) {
+    // Render thinking as a collapsed collapsible AFTER the last message
     var row = document.createElement("div");
-    row.className = "msg-row thinking";
-    var safe = String(reasoning);
-    safe = safe.replace(/[&<>]/g, function (c) {
+    row.className = "msg-row thinking thinking-collapsible thinking-collapsed";
+    var fullText = String(reasoning);
+    var safe = fullText.replace(/[&<>]/g, function (c) {
       if (c === "&") return "&" + "amp;";
       if (c === "<") return "&" + "lt;";
       if (c === ">") return "&" + "gt;";
       return c;
     });
+    var renderedMd = window.md(safe);
     var aiName = app.settings.aiName || "ASSISTANT";
-    row.innerHTML = "<div class=\"msg-role thinking\">" + aiName + " (thinking)</div>" +
-      "<div class=\"msg-content md-content thinking-content\">" + window.md(safe) + "</div>";
+    row.innerHTML = "<div class=\"thinking-toggle\" role=\"button\" tabindex=\"0\">" +
+      "<span class=\"thinking-arrow\">&#9660;</span> " + aiName + " (thinking)" +
+      "</div>" +
+      "<div class=\"thinking-body\">" +
+      "<div class=\"thinking-content md-content\">" + renderedMd + "</div>" +
+      "</div>";
     app.dom.messages.appendChild(row);
-    scroll();
-    setTimeout(function () {
-      if (row.parentNode) {
-        row.remove();
-        checkScrollPosition();
+    // Toggle expand/collapse on click
+    var toggleEl = row.querySelector(".thinking-toggle");
+    toggleEl.addEventListener("click", function () {
+      row.classList.toggle("thinking-collapsed");
+    });
+    toggleEl.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        row.classList.toggle("thinking-collapsed");
       }
-    }, 5000);
+    });
+    scroll();
     return row;
   };
 
@@ -299,11 +387,33 @@ function UIModule(app) {
           "</div>";
       }).join("");
     }
+    // Render AI annotations if present
+    var annotationHtml = "";
+    if (!isUser && msg.annotations && msg.annotations.length) {
+      annotationHtml = buildAnnotationHtml(msg.annotations);
+    }
     row.innerHTML = "<div class=\"msg-role " + (isUser ? "user" : "assistant") + "\">" + (isUser ? "You" : safeAiName) + " <span class=\"msg-time-inline\">" + safeTime + "</span></div>" +
       "<div class=\"msg-content md-content\">" + window.md(text) + "</div>" +
       (fileAttachmentsHtml ? "<div class=\"file-attachments\">" + fileAttachmentsHtml + "</div>" : "") +
       mediaHtml +
-      actionsHtml;
+      annotationHtml;
+    // For user messages, actions will be appended after the row in the DOM
+    var userActionsRow = null;
+    if (isUser) {
+      userActionsRow = document.createElement("div");
+      userActionsRow.className = "msg-actions-outside";
+      userActionsRow.innerHTML = actionsHtml;
+      // Set up copy button on the outside actions row
+      var outsideCopyBtn = userActionsRow.querySelector('[data-action="copy"]');
+      if (outsideCopyBtn) {
+        outsideCopyBtn.addEventListener("click", function () {
+          navigator.clipboard.writeText(text);
+          outsideCopyBtn.classList.add("copying");
+          setTimeout(function () { outsideCopyBtn.classList.remove("copying"); }, 1500);
+          toast("Copied!", "success");
+        });
+      }
+    }
     var copyBtn = row.querySelector('[data-action="copy"]');
     if (copyBtn) {
       copyBtn.addEventListener("click", function () {
@@ -360,6 +470,17 @@ function UIModule(app) {
         });
       }
     });
+    // Also handle download-media buttons in annotation containers that may be outside the row
+    document.querySelectorAll('.msg-actions-outside [data-action="download-media"]').forEach(function (btn) {
+      if (btn) {
+        btn.addEventListener("click", function () {
+          var item = btn.closest(".media-item");
+          var url = item ? item.dataset.url : null;
+          var name = item ? (item.dataset.name || "file") : "file";
+          if (url) downloadMedia(url, name);
+        });
+      }
+    });
     row.querySelectorAll('[data-action="download-file"]').forEach(function (btn) {
       if (btn) {
         btn.addEventListener("click", function () {
@@ -387,7 +508,37 @@ function UIModule(app) {
         });
       }
     });
+    // Handle annotation file downloads (inside or outside row)
+    var annotationFileBtns = (isUser ? document.querySelectorAll('.msg-actions-outside [data-action="download-annotation-file"]') : row.querySelectorAll('[data-action="download-annotation-file"]'));
+    annotationFileBtns.forEach(function (btn) {
+      if (btn) {
+        btn.addEventListener("click", function () {
+          var fileCard = btn.closest(".file-attachment");
+          if (fileCard) {
+            var url = fileCard.dataset.url || "";
+            var name = fileCard.dataset.name || "file";
+            var mime = fileCard.dataset.mime || "";
+            if (url) {
+              downloadMedia(url, name);
+            } else {
+              toast("No download URL available", "info");
+            }
+          }
+        });
+      }
+    });
+    // Append row to the DOM
     app.dom.messages.appendChild(row);
+    // For user messages, append copy/download actions OUTSIDE the row (below the bubble)
+    // For assistant messages, append actions inside the row
+    if (isUser && userActionsRow) {
+      app.dom.messages.appendChild(userActionsRow);
+    } else if (!isUser) {
+      var actionsContainer = document.createElement("div");
+      actionsContainer.innerHTML = actionsHtml;
+      var firstAction = actionsContainer.firstChild;
+      if (firstAction) row.appendChild(firstAction);
+    }
     return row;
   };
 

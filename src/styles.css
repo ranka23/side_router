@@ -63,7 +63,7 @@ html, body { font-family: var(--font); background: var(--bg); color: var(--text)
 .icon-btn.danger:hover { background: #fee2e2; color: var(--danger); }
 
 /* ── Messages ── */
-.messages { flex: 1; overflow-y: auto; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; position: relative; background: var(--bg); min-height: 0; }
+.messages { flex: 1; overflow-y: auto; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; position: relative; background: var(--bg); min-height: 0; }
 .messages::-webkit-scrollbar { width: 4px; }
 .messages::-webkit-scrollbar-track { background: var(--bg); }
 .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -158,6 +158,27 @@ body.dark .welcome-status.loading { background: #1e1b4b; color: #818cf8; }
 .msg-btn-icon .copy-feedback.hidden { display: none; }
 .msg-btn-icon.copying .copy-feedback { display: block !important; }
 
+/* Actions outside user bubble */
+.msg-actions-outside { display: flex; gap: 4px; padding: 2px 0 6px; align-self: flex-end; opacity: 0; transition: opacity 0.15s; }
+.msg-row.user:hover + .msg-actions-outside,
+.msg-actions-outside:hover { opacity: 1; }
+
+/* AI annotations container */
+.msg-annotations { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+
+/* Thinking collapsible */
+.msg-row.thinking.thinking-collapsible,
+.msg-row.thinking.thinking-collapsed { padding: 4px 10px; border: none; border-radius: var(--radius-sm); margin-top: 2px; }
+.thinking-toggle { cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--warning); user-select: none; transition: opacity 0.15s; padding: 2px 0; }
+.thinking-toggle:hover { opacity: 0.8; }
+.thinking-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.thinking-arrow { font-size: 8px; transition: transform 0.2s ease; display: inline-block; }
+.thinking-collapsed .thinking-arrow { transform: rotate(-90deg); }
+.thinking-body { overflow: hidden; max-height: 500px; transition: max-height 0.3s ease, opacity 0.2s ease; opacity: 0.7; }
+.thinking-collapsed .thinking-body { max-height: 0; opacity: 0; pointer-events: none; }
+.thinking-content { font-size: 12px; line-height: 1.5; padding-top: 4px; }
+.thinking-content p:last-child { margin-bottom: 0; }
+
 .msg-content { font-size: 13.5px; line-height: 1.6; word-wrap: break-word; overflow-wrap: break-word; min-width: 0; max-width: 100%; }
 .msg-row.user .msg-content { text-align: left; }
 
@@ -177,7 +198,8 @@ body.dark .welcome-status.loading { background: #1e1b4b; color: #818cf8; }
 .media-download-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* Typing */
-.typing-dots { display: flex; align-items: center; gap: 3px; padding: 6px 0; }
+.typing-dots { display: inline-flex; align-items: center; gap: 3px; padding: 6px 0; }
+.typing-label { font-size: 12px; color: var(--text-secondary); margin-left: 6px; opacity: 0.7; }
 .typing-dots .dot { width: 5px; height: 5px; background: var(--text-secondary); border-radius: 50%; animation: bounce 1s infinite; }
 .typing-dots .dot:nth-child(2) { animation-delay: 0.1s; }
 .typing-dots .dot:nth-child(3) { animation-delay: 0.2s; }
@@ -227,6 +249,30 @@ body.dark .welcome-status.loading { background: #1e1b4b; color: #818cf8; }
 .model-select-inline { max-width: 120px; padding: 4px 6px; border: none; border-radius: 4px; background: transparent; color: var(--text-secondary); font-size: 11px; outline: none; cursor: pointer; font-family: var(--font); flex-shrink: 0; }
 .model-select-inline option { color: var(--text); }
 .model-select-inline:disabled { opacity: 0.5; }
+
+/* Custom Model Dropdown */
+.model-dropdown-wrapper { position: relative; flex-shrink: 0; }
+.model-dropdown-trigger { display: flex; align-items: center; gap: 4px; max-width: 140px; padding: 4px 6px; border: none; border-radius: 4px; background: transparent; color: var(--text-secondary); font-size: 11px; cursor: pointer; font-family: var(--font); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; transition: background 0.15s; }
+.model-dropdown-trigger:hover { background: var(--bg-input); }
+.model-dropdown-trigger:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.model-dropdown-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.model-dropdown-arrow { font-size: 8px; flex-shrink: 0; opacity: 0.6; }
+.model-dropdown-panel { position: absolute; bottom: 100%; left: 0; margin-bottom: 4px; width: 280px; max-height: 360px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 -4px 16px rgba(0,0,0,0.12); z-index: 50; display: flex; flex-direction: column; overflow: hidden; }
+.model-dropdown-panel.hidden { display: none; }
+.model-dropdown-search-wrap { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.model-dropdown-search-icon { color: var(--text-secondary); flex-shrink: 0; display: flex; }
+.model-dropdown-search { width: 100%; border: none; background: none; outline: none; color: var(--text); font-size: 12px; font-family: var(--font); padding: 0; }
+.model-dropdown-search::placeholder { color: var(--text-secondary); }
+.model-dropdown-options { overflow-y: auto; max-height: 300px; padding: 4px 0; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.model-dropdown-options::-webkit-scrollbar { width: 4px; }
+.model-dropdown-options::-webkit-scrollbar-track { background: transparent; }
+.model-dropdown-options::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.model-dropdown-group { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); padding: 6px 10px 2px; user-select: none; }
+.model-dropdown-option { padding: 6px 10px; font-size: 12px; color: var(--text); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background 0.1s; }
+.model-dropdown-option:hover { background: var(--bg-hover); }
+.model-dropdown-option:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; background: var(--bg-hover); }
+.model-dropdown-option.selected { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.model-dropdown-empty { text-align: center; padding: 16px 10px; font-size: 12px; color: var(--text-secondary); }
 
 .send-btn { width: 28px; height: 28px; border: none; border-radius: 4px; background: none; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 4px; transition: all 0.15s; }
 .send-btn.running { color: var(--danger); }

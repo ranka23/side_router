@@ -112,7 +112,19 @@ class SideRouter {
     this.dom.aiName.onchange = function () { self.settings.aiName = self.dom.aiName.value.trim() || "ASSISTANT"; self.save(); };
     if (this.dom.defaultModelSelect) {
       this.dom.defaultModelSelect.onchange = function () {
-        self.settings.defaultModel = self.dom.defaultModelSelect.value || null;
+        var val = self.dom.defaultModelSelect.value;
+        self.settings.defaultModel = val || null;
+        if (val) {
+          self.settings.selectedModel = val;
+          if (self.dom.modelSelect) {
+            self.dom.modelSelect.value = val;
+          }
+          var selected = self.dom.modelSelect.selectedOptions[0];
+          if (selected && selected.dataset.context) {
+            self.updateContextPercent(selected.dataset.context);
+          }
+          self.checkPaidModel();
+        }
         self.save();
         self.toast("Default model updated", "success");
       };

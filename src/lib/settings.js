@@ -107,41 +107,210 @@ function SettingsModule(app) {
 
   const populateSelect = (models) => {
     const sel = app.dom.modelSelect;
-    sel.innerHTML = "";
     const free = models.filter((m) => m.isFree).sort((a, b) => a.name.localeCompare(b.name));
     const paid = models.filter((m) => !m.isFree).sort((a, b) => a.name.localeCompare(b.name));
-    const mk = (m) => {
-      const o = document.createElement("option");
+    // Build all models with group labels
+    var allModels = [];
+    free.forEach(function (m) { allModels.push({ id: m.id, context: m.contextLength || 4096, group: "Free Models" }); });
+    paid.forEach(function (m) { allModels.push({ id: m.id, context: m.contextLength || 4096, group: "Paid Models" }); });
+    // Create custom searchable dropdown
+    var wrapper = document.createElement("div");
+    wrapper.className = "model-dropdown-wrapper";
+    // Hidden select for actual value (keep options in sync for test compat)
+    sel.innerHTML = "";
+    // Add optgroup labels so checkPaidModel can detect paid vs free
+    var freeOptgroup = document.createElement("optgroup");
+    freeOptgroup.label = "Free Models";
+    var paidOptgroup = document.createElement("optgroup");
+    paidOptgroup.label = "Paid Models";
+    // Rebuild with optgroups
+    sel.innerHTML = "";
+    free.forEach(function (m) {
+      var o = document.createElement("option");
       o.value = m.id;
-      o.dataset.context = m.contextLength || 4096;
       o.textContent = m.id;
-      return o;
-    };
-    if (free.length) {
-      const og = document.createElement("optgroup");
-      og.label = "Free Models";
-      free.forEach((m) => og.appendChild(mk(m)));
-      sel.appendChild(og);
-    }
-    if (paid.length) {
-      const og = document.createElement("optgroup");
-      og.label = "Paid Models";
-      paid.forEach((m) => og.appendChild(mk(m)));
-      sel.appendChild(og);
-    }
-    if (app.settings.selectedModel) {
-      const m = Array.from(sel.options).find((o) => o.value === app.settings.selectedModel);
-      if (m) {
-        sel.value = app.settings.selectedModel;
-        updateContextPercent(m.dataset.context);
+      o.dataset.context = m.contextLength || 4096;
+      freeOptgroup.appendChild(o);
+    });
+    paid.forEach(function (m) {
+      var o = document.createElement("option");
+      o.value = m.id;
+      o.textContent = m.id;
+      o.dataset.context = m.contextLength || 4096;
+      paidOptgroup.appendChild(o);
+    });
+    if (free.length) sel.appendChild(freeOptgroup);
+    if (paid.length) sel.appendChild(paidOptgroup);
+    sel.style.display = "none";
+    // Build custom dropdown
+    var trigger = document.createElement("div");
+    trigger.className = "model-dropdown-trigger";
+    trigger.tabIndex = 0;
+    trigger.setAttribute("role", "combobox");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-haspopup", "listbox");
+    var triggerText = document.createElement("span");
+    triggerText.className = "model-dropdown-text";
+    triggerText.textContent = app.settings.selectedModel || "Select model";
+    var triggerArrow = document.createElement("span");
+    triggerArrow.className = "model-dropdown-arrow";
+    triggerArrow.innerHTML = "&#9662;";
+    trigger.appendChild(triggerText);
+    trigger.appendChild(triggerArrow);
+    // Dropdown panel
+    var panel = document.createElement("div");
+    panel.className = "model-dropdown-panel hidden";
+    // Search input
+    var searchWrap = document.createElement("div");
+    searchWrap.className = "model-dropdown-search-wrap";
+    var searchIcon = document.createElement("span");
+    searchIcon.className = "model-dropdown-search-icon";
+    searchIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
+    var searchInput = document.createElement("input");
+    searchInput.type = "text";
+    searchInput.className = "model-dropdown-search";
+    searchInput.placeholder = "Search models…";
+    searchInput.setAttribute("aria-label", "Search models");
+    searchWrap.appendChild(searchIcon);
+    searchWrap.appendChild(searchInput);
+    panel.appendChild(searchWrap);
+    // Options list
+    var optionsList = document.createElement("div");
+    optionsList.className = "model-dropdown-options";
+    optionsList.setAttribute("role", "listbox");
+    function renderOptions(filter) {
+      optionsList.innerHTML = "";
+      var f = (filter || "").toLowerCase();
+      var lastGroup = "";
+      allModels.forEach(function (m) {
+        if (f && m.id.toLowerCase().indexOf(f) === -1) return;
+        if (m.group !== lastGroup) {
+          lastGroup = m.group;
+          var groupEl = document.createElement("div");
+          groupEl.className = "model-dropdown-group";
+          groupEl.textContent = m.group;
+          optionsList.appendChild(groupEl);
+        }
+        var optEl = document.createElement("div");
+        optEl.className = "model-dropdown-option";
+        optEl.setAttribute("role", "option");
+        optEl.dataset.value = m.id;
+        optEl.dataset.context = m.context;
+        optEl.textContent = m.id;
+        if (m.id === sel.value) optEl.classList.add("selected");
+        optEl.addEventListener("click", function () {
+          selectModel(m.id, m.context);
+        });
+        optionsList.appendChild(optEl);
+      });
+      if (!optionsList.children.length) {
+        var empty = document.createElement("div");
+        empty.className = "model-dropdown-empty";
+        empty.textContent = "No models found";
+        optionsList.appendChild(empty);
       }
     }
-    if (!sel.value && sel.options.length) {
-      const freeDefault = Array.from(sel.options).find((o) => o.value === "openrouter/free");
-      const fallback = freeDefault || sel.options[0];
-      sel.value = fallback.value;
-      app.settings.selectedModel = fallback.value;
-      updateContextPercent(fallback.dataset.context);
+    renderOptions("");
+    panel.appendChild(optionsList);
+    // Assemble
+    wrapper.appendChild(sel);
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(panel);
+    if (sel.parentNode) {
+      sel.parentNode.insertBefore(wrapper, sel);
+    } else {
+      document.body.appendChild(wrapper);
+    }
+    // Store reference
+    app.dom.modelDropdownWrapper = wrapper;
+    app.dom.modelDropdownTrigger = trigger;
+    app.dom.modelDropdownPanel = panel;
+    app.dom.modelDropdownSearch = searchInput;
+    app.dom.modelDropdownOptions = optionsList;
+    app.dom.modelDropdownText = triggerText;
+    // Events
+    function togglePanel() {
+      var isOpen = !panel.classList.contains("hidden");
+      if (isOpen) {
+        closePanel();
+      } else {
+        panel.classList.remove("hidden");
+        trigger.setAttribute("aria-expanded", "true");
+        searchInput.value = "";
+        renderOptions("");
+        searchInput.focus();
+      }
+    }
+    function closePanel() {
+      panel.classList.add("hidden");
+      trigger.setAttribute("aria-expanded", "false");
+    }
+    function selectModel(id, context) {
+      sel.value = id;
+      app.settings.selectedModel = id;
+      triggerText.textContent = id;
+      updateContextPercent(context);
+      save();
+      checkPaidModel();
+      closePanel();
+    }
+    trigger.addEventListener("click", function (e) { e.stopPropagation(); togglePanel(); });
+    trigger.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePanel(); }
+      if (e.key === "Escape") closePanel();
+    });
+    searchInput.addEventListener("input", function () { renderOptions(searchInput.value); });
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { closePanel(); trigger.focus(); }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        var firstOpt = optionsList.querySelector(".model-dropdown-option");
+        if (firstOpt) firstOpt.focus();
+      }
+    });
+    optionsList.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { closePanel(); trigger.focus(); }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        var next = document.activeElement.nextElementSibling;
+        if (next && next.classList.contains("model-dropdown-option")) next.focus();
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        var prev = document.activeElement.previousElementSibling;
+        if (prev && prev.classList.contains("model-dropdown-option")) prev.focus();
+        else searchInput.focus();
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (document.activeElement.classList.contains("model-dropdown-option")) {
+          document.activeElement.click();
+        }
+      }
+    });
+    document.addEventListener("click", function (e) {
+      if (!wrapper.contains(e.target)) closePanel();
+    });
+    // Set initial trigger text
+    if (app.settings.selectedModel) {
+      triggerText.textContent = app.settings.selectedModel;
+    }
+    // Set initial selected model from settings
+    if (app.settings.selectedModel) {
+      var found = allModels.find(function (m) { return m.id === app.settings.selectedModel; });
+      if (found) {
+        sel.value = app.settings.selectedModel;
+        triggerText.textContent = app.settings.selectedModel;
+        updateContextPercent(found.context);
+      }
+    }
+    if (!sel.value && allModels.length) {
+      var freeDefault = allModels.find(function (m) { return m.id === "openrouter/free"; });
+      var fallback = freeDefault || allModels[0];
+      sel.value = fallback.id;
+      app.settings.selectedModel = fallback.id;
+      triggerText.textContent = fallback.id;
+      updateContextPercent(fallback.context);
       save();
     }
     checkPaidModel();

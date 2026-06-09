@@ -253,6 +253,10 @@ function ChatModule(app) {
           app.dom.proNotice.classList.remove("hidden");
           throw new Error(msg + " — Buy credits at openrouter.ai/settings/billing");
         }
+        // Check if model doesn't support the request content (images/audio/video/files)
+        if (msg.match(/does not support|not support|unsupported|content type|modality|multimodal|only supports text/i)) {
+          throw new Error("AI Model doesn't support your request. Please choose another model to process your request.");
+        }
         if (res.status === 401) {
           app.settings.apiKey = null;
           app.save();
