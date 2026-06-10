@@ -225,8 +225,8 @@ function SettingsModule(app) {
    *  USDC/USDT show both ETH and SOL QR images side by side.
    */
   var renderDonateQrCodes = function () {
-    var ethImg = "media/ethereum-wallet-address.jpg";
-    var solImg = "media/Phantom-Wallet-Address.jpg";
+    var ethImg = "media/eth-address.jpg";
+    var solImg = "media/sol-address.jpg";
     var ethAddr = walletAddresses.eth;
     var solAddr = walletAddresses.sol;
     // Simple single-QR wallets: ETH and SOL
