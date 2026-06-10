@@ -200,7 +200,7 @@
     <div id="donate-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="donate-title">
       <div class="modal modal-donate">
         <div class="modal-header">
-          <h2 id="donate-title">Support me!</h2>
+          <h2 id="donate-title">Please Support Me!</h2>
           <button id="donate-close-btn" class="icon-btn" aria-label="Close donate modal">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -210,23 +210,19 @@
         </div>
         <div class="modal-body">
           <div class="donate-hero">
-            <svg class="donate-hero-img" width="120" height="120" viewBox="0 0 120 120" fill="none" aria-hidden="true">
-              <circle cx="60" cy="60" r="56" fill="#eef2ff" stroke="#6366f1" stroke-width="2"/>
-              <path d="M44 52c0-1 1-8 1-8s1-4 3-6c2-2 5-3 6-3s4 0 6 0c1 1 3 4 3 6s1 8 1 8" stroke="#6366f1" stroke-width="2" fill="none" stroke-linecap="round"/>
-              <path d="M38 56c0 2 2 4 8 4h28c6 0 8-2 8-4v4c0 12-10 20-22 20S38 68 38 64v-4z" fill="#6366f1"/>
-              <ellipse cx="60" cy="64" rx="18" ry="4" fill="#818cf8" opacity="0.5"/>
-              <path d="M40 48c4-8 8-12 16-12s12 4 16 12" stroke="#34d399" stroke-width="2" fill="none" stroke-linecap="round"/>
-              <circle cx="48" cy="52" r="1.5" fill="#34d399"/>
-              <circle cx="72" cy="52" r="1.5" fill="#34d399"/>
-              <!-- Coffee cup steam -->
-              <path d="M54 38c0-4 3-8 6-10" stroke="#6366f1" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.4"/>
-              <path d="M60 38c0-4 3-8 6-10" stroke="#6366f1" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.4"/>
-              <path d="M66 38c0-4-3-8-6-10" stroke="#6366f1" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.4"/>
-              <!-- Crypto symbols -->
-              <text x="24" y="80" font-size="10" fill="#6366f1" font-weight="700">Ξ</text>
-              <text x="92" y="80" font-size="10" fill="#34d399" font-weight="700">◎</text>
-              <text x="24" y="100" font-size="10" fill="#f59e0b" font-weight="700">$</text>
-              <text x="92" y="100" font-size="10" fill="#ef4444" font-weight="700">💎</text>
+            <svg class="donate-hero-img" width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden="true">
+              <!-- Coffee mug body -->
+              <rect x="18" y="30" width="36" height="32" rx="4" fill="#6366f1"/>
+              <!-- Mug handle -->
+              <path d="M54 38 C64 38, 64 54, 54 54" stroke="#6366f1" stroke-width="4" fill="none" stroke-linecap="round"/>
+              <!-- Coffee surface -->
+              <ellipse cx="36" cy="36" rx="16" ry="4" fill="#818cf8"/>
+              <!-- Steam lines -->
+              <path d="M28 24 C28 18, 32 16, 30 10" stroke="#6366f1" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.5"/>
+              <path d="M36 22 C36 16, 40 14, 38 8" stroke="#6366f1" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.5"/>
+              <path d="M44 24 C44 18, 48 16, 46 10" stroke="#6366f1" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.5"/>
+              <!-- Heart on mug -->
+              <path d="M30 44 C30 41, 33 39, 36 42 C39 39, 42 41, 42 44 C42 48, 36 52, 36 52 C36 52, 30 48, 30 44Z" fill="#ef4444" opacity="0.8"/>
             </svg>
             <h3 class="donate-hero-title">Buy me a Coffee!</h3>
         </div>
@@ -241,11 +237,11 @@
             </div>
             <div class="donate-qr" id="qr-eth"></div>
             <div class="donate-address-row">
-              <span class="donate-address" id="donate-eth-addr" title="Ethereum wallet address">YOUR_ETH_ADDRESS_HERE</span>
+              <span class="donate-address" id="donate-eth-addr" title="Ethereum wallet address">0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A</span>
               <button class="donate-copy-btn" data-wallet="eth" title="Copy to clipboard">📋</button>
             </div>
             <div class="donate-wallet-label">
-              <span class="donate-wallet-tag">MetaMask / Ethereum Wallet</span>
+              <span class="donate-wallet-tag">Ethereum</span>
             </div>
           </div>
 
@@ -257,48 +253,68 @@
             </div>
             <div class="donate-qr" id="qr-sol"></div>
             <div class="donate-address-row">
-              <span class="donate-address" id="donate-sol-addr" title="Solana wallet address">YOUR_SOL_ADDRESS_HERE</span>
+              <span class="donate-address" id="donate-sol-addr" title="Solana wallet address">H9kw2HG3eik5uKYoULHuzohoY7gCi1Jfqk38ppn1Szyo</span>
               <button class="donate-copy-btn" data-wallet="sol" title="Copy to clipboard">📋</button>
             </div>
             <div class="donate-wallet-label">
-              <span class="donate-wallet-tag">Phantom / Solana Wallet</span>
+              <span class="donate-wallet-tag">Solana</span>
             </div>
           </div>
 
-          <!-- USDC (Ethereum) Wallet -->
+          <!-- USDC (Stablecoin — both chains) -->
           <div class="donate-wallet">
             <div class="donate-wallet-header">
               <span class="donate-coin-icon">🔵</span>
-              <span class="donate-coin-name">USDC (ERC-20)</span>
+              <span class="donate-coin-name">USDC</span>
             </div>
-            <div class="donate-qr" id="qr-usdc"></div>
-            <div class="donate-address-row">
-              <span class="donate-address" id="donate-usdc-addr" title="USDC wallet address (Ethereum)">YOUR_USDC_ADDRESS_HERE</span>
-              <button class="donate-copy-btn" data-wallet="usdc" title="Copy to clipboard">📋</button>
-            </div>
-            <div class="donate-wallet-label">
-              <span class="donate-wallet-tag">MetaMask / Ethereum Wallet</span>
+            <div class="donate-qr-row">
+              <div class="donate-qr-col">
+                <span class="donate-qr-label">Ethereum</span>
+                <div class="donate-qr" id="qr-usdc-eth"></div>
+                <div class="donate-address-row">
+                  <span class="donate-address" id="donate-usdc-eth-addr" title="USDC on Ethereum">0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A</span>
+                  <button class="donate-copy-btn" data-wallet="usdc-eth" title="Copy ETH address">📋</button>
+                </div>
+              </div>
+              <div class="donate-qr-col sol-col">
+                <span class="donate-qr-label">Solana</span>
+                <div class="donate-qr" id="qr-usdc-sol"></div>
+                <div class="donate-address-row">
+                  <span class="donate-address" id="donate-usdc-sol-addr" title="USDC on Solana">H9kw2HG3eik5uKYoULHuzohoY7gCi1Jfqk38ppn1Szyo</span>
+                  <button class="donate-copy-btn" data-wallet="usdc-sol" title="Copy SOL address">📋</button>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- USDT (Ethereum) Wallet -->
+          <!-- USDT (Stablecoin — both chains) -->
           <div class="donate-wallet">
             <div class="donate-wallet-header">
               <span class="donate-coin-icon">🟢</span>
-              <span class="donate-coin-name">USDT (ERC-20)</span>
+              <span class="donate-coin-name">USDT</span>
             </div>
-            <div class="donate-qr" id="qr-usdt"></div>
-            <div class="donate-address-row">
-              <span class="donate-address" id="donate-usdt-addr" title="USDT wallet address (Ethereum)">YOUR_USDT_ADDRESS_HERE</span>
-              <button class="donate-copy-btn" data-wallet="usdt" title="Copy to clipboard">📋</button>
-            </div>
-            <div class="donate-wallet-label">
-              <span class="donate-wallet-tag">MetaMask / Ethereum Wallet</span>
+            <div class="donate-qr-row">
+              <div class="donate-qr-col">
+                <span class="donate-qr-label">Ethereum</span>
+                <div class="donate-qr" id="qr-usdt-eth"></div>
+                <div class="donate-address-row">
+                  <span class="donate-address" id="donate-usdt-eth-addr" title="USDT on Ethereum">0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A</span>
+                  <button class="donate-copy-btn" data-wallet="usdt-eth" title="Copy ETH address">📋</button>
+                </div>
+              </div>
+              <div class="donate-qr-col sol-col">
+                <span class="donate-qr-label">Solana</span>
+                <div class="donate-qr" id="qr-usdt-sol"></div>
+                <div class="donate-address-row">
+                  <span class="donate-address" id="donate-usdt-sol-addr" title="USDT on Solana">H9kw2HG3eik5uKYoULHuzohoY7gCi1Jfqk38ppn1Szyo</span>
+                  <button class="donate-copy-btn" data-wallet="usdt-sol" title="Copy SOL address">📋</button>
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="donate-footer">
-            <p>Open Software — <a href="https://github.com/ranka23/side-router" target="_blank" rel="noopener noreferrer">Source Code</a></p>
+            <p>Open Source — <a href="https://github.com/ranka23/side-router" target="_blank" rel="noopener noreferrer">Source Code</a></p>
           </div>
         </div>
       </div>
@@ -397,7 +413,7 @@
             </div>
           </div>
           <div id="context-panel-file" class="context-panel hidden">
-            <p class="hint">Select a file to include as context. Text files, PDFs, images, audio and video are supported.</p>
+            <p class="hint file-text">Select a file to include as context. Text files, PDFs, images, audio and video are supported.</p>
             <input type="file" id="context-file-input" accept="image/*,audio/*,video/*,.pdf,.txt,.md,.json,.csv,.xml,.html,.css,.js,.py,.ts,.jsx,.tsx,.doc,.docx,.xls,.xlsx" />
             <div id="context-file-preview" class="context-file-preview hidden"></div>
           </div>

@@ -116,10 +116,10 @@ function SettingsModule(app) {
 
   /** Wallet addresses (placeholder — replace with actual addresses) */
   var walletAddresses = {
-    eth: "YOUR_ETH_ADDRESS_HERE",
-    sol: "YOUR_SOL_ADDRESS_HERE",
-    usdc: "YOUR_USDC_ADDRESS_HERE",
-    usdt: "YOUR_USDT_ADDRESS_HERE",
+    eth: "0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A",
+    sol: "H9kw2HG3eik5uKYoULHuzohoY7gCi1Jfqk38ppn1Szyo",
+    usdc: "0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A",
+    usdt: "0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A",
   };
 
   /**
@@ -220,20 +220,41 @@ function SettingsModule(app) {
     return false;
   };
 
-  /** Render QR codes for all wallet addresses in the donate modal */
+  /** Render QR code images for wallet addresses in the donate modal.
+   *  Uses actual JPEG images from media/ instead of generated QR codes.
+   *  USDC/USDT show both ETH and SOL QR images side by side.
+   */
   var renderDonateQrCodes = function () {
-    var coins = ["eth", "sol", "usdc", "usdt"];
-    for (var i = 0; i < coins.length; i++) {
-      var coin = coins[i];
-      var qrEl = document.getElementById("qr-" + coin);
-      var addrEl = document.getElementById("donate-" + coin + "-addr");
-      if (qrEl && walletAddresses[coin]) {
-        qrEl.innerHTML = generateQrSvg(walletAddresses[coin], 100);
-      }
-      if (addrEl) {
-        addrEl.textContent = walletAddresses[coin];
-        addrEl.title = walletAddresses[coin];
-      }
+    var ethImg = "media/ethereum-wallet-address.jpg";
+    var solImg = "media/Phantom-Wallet-Address.jpg";
+    var ethAddr = walletAddresses.eth;
+    var solAddr = walletAddresses.sol;
+    // Simple single-QR wallets: ETH and SOL
+    var simpleCoins = [
+      { id: "eth", img: ethImg, addr: ethAddr, label: "ETH" },
+      { id: "sol", img: solImg, addr: solAddr, label: "SOL" },
+    ];
+    for (var i = 0; i < simpleCoins.length; i++) {
+      var c = simpleCoins[i];
+      var qrEl = document.getElementById("qr-" + c.id);
+      var addrEl = document.getElementById("donate-" + c.id + "-addr");
+      if (qrEl) qrEl.innerHTML = '<img src="' + c.img + '" alt="' + c.label + ' QR Code" class="donate-qr-img" />';
+      if (addrEl) { addrEl.textContent = c.addr; addrEl.title = c.addr; }
+    }
+    // Dual-QR wallets: USDC and USDT (both chains)
+    var dualCoins = ["usdc", "usdt"];
+    for (var j = 0; j < dualCoins.length; j++) {
+      var coin = dualCoins[j];
+      // ETH side
+      var ethQr = document.getElementById("qr-" + coin + "-eth");
+      var ethAddrEl = document.getElementById("donate-" + coin + "-eth-addr");
+      if (ethQr) ethQr.innerHTML = '<img src="' + ethImg + '" alt="' + coin.toUpperCase() + ' ETH QR Code" class="donate-qr-img" />';
+      if (ethAddrEl) { ethAddrEl.textContent = ethAddr; ethAddrEl.title = ethAddr; }
+      // SOL side
+      var solQr = document.getElementById("qr-" + coin + "-sol");
+      var solAddrEl = document.getElementById("donate-" + coin + "-sol-addr");
+      if (solQr) solQr.innerHTML = '<img src="' + solImg + '" alt="' + coin.toUpperCase() + ' SOL QR Code" class="donate-qr-img" />';
+      if (solAddrEl) { solAddrEl.textContent = solAddr; solAddrEl.title = solAddr; }
     }
   };
 
