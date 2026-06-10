@@ -41,5 +41,12 @@
     "32": "media/icon32.png",
     "48": "media/icon48.png",
     "128": "media/icon128.png"
+  },
+  "_firefox_note": "For Firefox: add browser_specific_settings.gecko, replace sidePanel with sidebar_action, use background.scripts instead of service_worker",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "siderouter@example.com",
+      "strict_min_version": "109.0"
+    }
   }
 }

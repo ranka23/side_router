@@ -209,15 +209,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 // ── Side Panel Open ──────────────────────────────────────────
+// Cross-browser: Firefox uses browser.sidebarAction, Chrome uses chrome.sidePanel
+const sidePanel = (typeof browser !== 'undefined' && browser.sidebarAction)
+  ? browser.sidebarAction
+  : chrome.sidePanel;
+
 chrome.action.onClicked.addListener(async (tab) => {
   try {
-    await chrome.sidePanel.open({ windowId: tab.windowId });
+    if (sidePanel.open) {
+      await sidePanel.open({ windowId: tab.windowId });
+    }
   } catch (e) { console.error('open side panel:', e); }
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
   await loadSettings();
-  chrome.sidePanel.setOptions({ path: 'main.html', enabled: true }).catch(() => {});
+  if (sidePanel.setOptions) {
+    sidePanel.setOptions({ path: 'main.html', enabled: true }).catch(() => {});
+  }
   fetchModels();
 });
 
