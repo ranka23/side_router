@@ -9,6 +9,7 @@ const defaults = {
   autoApprove: false,
   aiName: 'ASSISTANT',
   rememberedPermissions: [], // Stored as array, converted to Set in frontend
+  zoomLevel: 100, // Content zoom percentage (50-200)
 };
 
 let settings = { ...defaults };              // In-memory settings cache

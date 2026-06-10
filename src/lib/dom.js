@@ -1,12 +1,19 @@
 // src/lib/dom.js - DOM element caching
+// Provides the global $ shortcut and caches all DOM elements SideRouter uses.
+// This avoids repeated getElementById calls throughout the codebase.
+
 const $ = (id) => document.getElementById(id);
 
+/**
+ * Cache all DOM element references for fast access throughout the app.
+ * Called once during SideRouter construction.
+ * @param {SideRouter} app - The main application instance
+ */
 function cacheDom(app) {
   app.dom = {
     messages: $("main-content"),
     input: $("msg-input"),
     sendBtn: $("btn-send"),
-    attachBtn: $("btn-attach"),
     fileInput: $("file-input"),
     modelSelect: $("model-select-inline"),
     defaultModelSelect: $("default-model-select"),
@@ -46,6 +53,16 @@ function cacheDom(app) {
     permActionDetails: $("perm-action-details"),
     permAiName: $("perm-ai-name"),
     permRememberType: $("perm-remember-type"),
+    // Zoom controls
+    zoomOut: $("zoom-out"),
+    zoomIn: $("zoom-in"),
+    zoomLevel: $("zoom-level"),
+    zoomReset: $("zoom-reset"),
+    // Donate modal
+    donateModal: $("donate-modal"),
+    donateCloseBtn: $("donate-close-btn"),
+    btnOpenDonate: $("btn-open-donate"),
+    btnContext: $("btn-context"),
   };
 }
 

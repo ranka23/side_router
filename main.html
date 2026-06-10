@@ -90,11 +90,7 @@
           <textarea id="msg-input" placeholder="Message…" aria-label="Type a message"></textarea>
           <div class="input-buttons-container">
             <div class="input-buttons-left-wrapper">
-              <button id="btn-attach" class="input-icon-btn" aria-label="Attach file" title="Attach file">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" focusable="false">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
+              <!-- Context button moved to first position (file upload icon removed) -->
               <button id="btn-context" class="input-icon-btn context-btn" aria-label="Add context" title="Add context (@)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
                   <circle cx="12" cy="12" r="10" />
@@ -141,6 +137,17 @@
             </div>
             <p class="hint">Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a></p>
           </div>
+          <!-- ── Zoom Controls ── -->
+          <div class="form-group">
+            <label>Content Zoom</label>
+            <div class="zoom-controls">
+              <button id="zoom-out" class="zoom-btn" aria-label="Zoom out" title="Zoom out">- </button>
+              <span id="zoom-level" class="zoom-level">100%</span>
+              <button id="zoom-in" class="zoom-btn" aria-label="Zoom in" title="Zoom in">+</button>
+              <button id="zoom-reset" class="zoom-btn" aria-label="Reset zoom" title="Reset zoom">Reset</button>
+            </div>
+            <p class="hint">Adjust the text size in the chat area</p>
+          </div>
           <div class="form-group">
             <label for="theme-toggle">Appearance</label>
             <label class="toggle">
@@ -183,7 +190,115 @@
             <p>Using paid models requires credits. <a href="https://openrouter.ai/settings/billing" target="_blank" rel="noopener noreferrer">Buy credits →</a></p>
           </div>
           <div class="donate-link">
-            <a href="https://rzp.io/rzp/IbvR3pMx" target="_blank" rel="noopener noreferrer">❤️ Donate $1</a>
+            <a href="#" id="btn-open-donate" aria-label="Donate to SideRouter">❤️ Donate $1</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Donate Modal (Crypto QR Codes) ── -->
+    <div id="donate-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="donate-title">
+      <div class="modal modal-donate">
+        <div class="modal-header">
+          <h2 id="donate-title">Support me!</h2>
+          <button id="donate-close-btn" class="icon-btn" aria-label="Close donate modal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="donate-hero">
+            <svg class="donate-hero-img" width="120" height="120" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+              <circle cx="60" cy="60" r="56" fill="#eef2ff" stroke="#6366f1" stroke-width="2"/>
+              <path d="M44 52c0-1 1-8 1-8s1-4 3-6c2-2 5-3 6-3s4 0 6 0c1 1 3 4 3 6s1 8 1 8" stroke="#6366f1" stroke-width="2" fill="none" stroke-linecap="round"/>
+              <path d="M38 56c0 2 2 4 8 4h28c6 0 8-2 8-4v4c0 12-10 20-22 20S38 68 38 64v-4z" fill="#6366f1"/>
+              <ellipse cx="60" cy="64" rx="18" ry="4" fill="#818cf8" opacity="0.5"/>
+              <path d="M40 48c4-8 8-12 16-12s12 4 16 12" stroke="#34d399" stroke-width="2" fill="none" stroke-linecap="round"/>
+              <circle cx="48" cy="52" r="1.5" fill="#34d399"/>
+              <circle cx="72" cy="52" r="1.5" fill="#34d399"/>
+              <!-- Coffee cup steam -->
+              <path d="M54 38c0-4 3-8 6-10" stroke="#6366f1" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.4"/>
+              <path d="M60 38c0-4 3-8 6-10" stroke="#6366f1" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.4"/>
+              <path d="M66 38c0-4-3-8-6-10" stroke="#6366f1" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.4"/>
+              <!-- Crypto symbols -->
+              <text x="24" y="80" font-size="10" fill="#6366f1" font-weight="700">Ξ</text>
+              <text x="92" y="80" font-size="10" fill="#34d399" font-weight="700">◎</text>
+              <text x="24" y="100" font-size="10" fill="#f59e0b" font-weight="700">$</text>
+              <text x="92" y="100" font-size="10" fill="#ef4444" font-weight="700">💎</text>
+            </svg>
+            <h3 class="donate-hero-title">Buy me a Coffee!</h3>
+        </div>
+          <p class="donate-subtitle">Your donations help me build better software.</p>
+          <p class="donate-body">We accept Ethereum, Solana, USDC and USDT. It helps pay the bills and keep me alive.</p>
+
+          <!-- ETH Wallet -->
+          <div class="donate-wallet">
+            <div class="donate-wallet-header">
+              <span class="donate-coin-icon">🔷</span>
+              <span class="donate-coin-name">ETH</span>
+            </div>
+            <div class="donate-qr" id="qr-eth"></div>
+            <div class="donate-address-row">
+              <span class="donate-address" id="donate-eth-addr" title="Ethereum wallet address">YOUR_ETH_ADDRESS_HERE</span>
+              <button class="donate-copy-btn" data-wallet="eth" title="Copy to clipboard">📋</button>
+            </div>
+            <div class="donate-wallet-label">
+              <span class="donate-wallet-tag">MetaMask / Ethereum Wallet</span>
+            </div>
+          </div>
+
+          <!-- SOL Wallet -->
+          <div class="donate-wallet">
+            <div class="donate-wallet-header">
+              <span class="donate-coin-icon">🟣</span>
+              <span class="donate-coin-name">SOL</span>
+            </div>
+            <div class="donate-qr" id="qr-sol"></div>
+            <div class="donate-address-row">
+              <span class="donate-address" id="donate-sol-addr" title="Solana wallet address">YOUR_SOL_ADDRESS_HERE</span>
+              <button class="donate-copy-btn" data-wallet="sol" title="Copy to clipboard">📋</button>
+            </div>
+            <div class="donate-wallet-label">
+              <span class="donate-wallet-tag">Phantom / Solana Wallet</span>
+            </div>
+          </div>
+
+          <!-- USDC (Ethereum) Wallet -->
+          <div class="donate-wallet">
+            <div class="donate-wallet-header">
+              <span class="donate-coin-icon">🔵</span>
+              <span class="donate-coin-name">USDC (ERC-20)</span>
+            </div>
+            <div class="donate-qr" id="qr-usdc"></div>
+            <div class="donate-address-row">
+              <span class="donate-address" id="donate-usdc-addr" title="USDC wallet address (Ethereum)">YOUR_USDC_ADDRESS_HERE</span>
+              <button class="donate-copy-btn" data-wallet="usdc" title="Copy to clipboard">📋</button>
+            </div>
+            <div class="donate-wallet-label">
+              <span class="donate-wallet-tag">MetaMask / Ethereum Wallet</span>
+            </div>
+          </div>
+
+          <!-- USDT (Ethereum) Wallet -->
+          <div class="donate-wallet">
+            <div class="donate-wallet-header">
+              <span class="donate-coin-icon">🟢</span>
+              <span class="donate-coin-name">USDT (ERC-20)</span>
+            </div>
+            <div class="donate-qr" id="qr-usdt"></div>
+            <div class="donate-address-row">
+              <span class="donate-address" id="donate-usdt-addr" title="USDT wallet address (Ethereum)">YOUR_USDT_ADDRESS_HERE</span>
+              <button class="donate-copy-btn" data-wallet="usdt" title="Copy to clipboard">📋</button>
+            </div>
+            <div class="donate-wallet-label">
+              <span class="donate-wallet-tag">MetaMask / Ethereum Wallet</span>
+            </div>
+          </div>
+
+          <div class="donate-footer">
+            <p>Open Software — <a href="https://github.com/ranka23/side-router" target="_blank" rel="noopener noreferrer">Source Code</a></p>
           </div>
         </div>
       </div>

@@ -9,13 +9,17 @@ AI chat powered by OpenRouter.ai in your browser's side panel. Chat with free an
 - **Model Selection**: Browse all OpenRouter models with automatic free/paid grouping
 - **Task Queue**: Queue multiple messages while one is processing; cancel with stop button
 - **Permission System**: Approve or deny AI requests to execute JavaScript on pages
-- **File Attachments**: Upload images, audio, video, and text files up to 10MB
+- **File Attachments**: Upload images, audio, video, and text files via the context popup
 - **Page Context**: Include "this page" content for contextual AI assistance
+- **Tab Context**: Add context from any open Chrome tab
 - **History Persistence**: Optionally save chat history to Chrome storage
 - **Chat History Popup**: View and restore past conversations from the history button
 - **Dark Mode**: Auto-detect or manually toggle dark theme
 - **Context Tracking**: See token usage vs model context limit in real-time
 - **Thinking Display**: View AI reasoning before final response (auto-clears in 5s)
+- **Content Zoom**: Adjust text size in the chat area (- / 100% / +) with persistent settings
+- **Context Compression**: Automatically compresses context to fit within model limits
+- **Donate Modal**: Crypto donation support with QR codes for ETH, SOL, USDC, USDT
 
 ## Installation
 
@@ -33,16 +37,17 @@ AI chat powered by OpenRouter.ai in your browser's side panel. Chat with free an
 2. Type a message and press Enter or click Send
 3. The side panel opens with AI responses
 
-### File Attachments
-1. Click the paperclip icon in the input area
-2. Select files (images, documents, code files)
-3. Messages with attachments send the file content to the AI
+### Context Features
+1. Click the @ icon in the input area to open the context picker
+2. **Current Page**: Add the active tab's content as context
+3. **Tabs**: Select multiple open tabs to add as context
+4. **File**: Upload text files, PDFs, images, or code files as context
+5. Context chips appear above the input showing attached context
 
-### Page Context
-Ask about "this page", "the webpage", or "current page" to include:
-- Page title and URL
-- Text content (first 8000 characters)
-- Form structure (up to 3 forms)
+### Zoom Controls
+1. Open Settings (gear icon in header)
+2. Use the Content Zoom controls (- / 100% / +)
+3. Zoom level persists across sessions
 
 ### JavaScript Execution
 1. AI can request to run JavaScript on the current page
@@ -59,17 +64,23 @@ Click the history icon (three stacked panels) in the header to view past convers
 ## Architecture
 
 ```
-main.html              ← UI layout (messages, input, settings modal)
+main.html              ← UI layout (messages, input, settings, donate modals)
 src/
   script.js            ← SideRouter class (frontend controller)
-  background.js       ← Service worker (model API, tab execution)
+  background.js        ← Service worker (model API, tab execution)
   content.js           ← Content script (page context extraction)
   styles.css           ← All styling with CSS variables
-media/
-  icon16.svg           ← Extension icons
-  icon32.svg
-  icon48.svg
-  icon128.svg
+  lib/
+    api.js             ← Background API communication with retry
+    storage.js         ← Storage utilities
+    markdown.js        ← Markdown parser with XSS protection
+    dom.js             ← DOM element caching
+    settings.js        ← Settings, zoom, donate modal, model population
+    ui.js              ← UI rendering (bubbles, typing, media)
+    chat.js            ← Send flow, queue, context compression
+    history.js         ← Chat history management
+    context.js         ← Context picker, permission system
+media/                 ← Extension icons
 manifest.json          ← Extension configuration (MV3)
 ```
 
@@ -82,15 +93,24 @@ Main controller handling:
 - Markdown rendering with XSS protection
 - Permission request flow
 - Settings persistence
+- Zoom controls and donate modal
 
 ### Flow: Sending a Message
 1. `send()` validates input → `queueSend()` adds to queue
 2. `processQueue()` picks up and calls `handleSend()`
 3. Constructs prompt with optional page context
-4. POSTs to OpenRouter API with AbortController support
-5. Renders typing indicator during wait
-6. Displays response (with optional thinking/reasoning)
-7. Saves history if enabled
+4. Compresses context to fit within model's context window
+5. POSTs to OpenRouter API with AbortController support
+6. Renders typing indicator during wait
+7. Displays response (with optional thinking/reasoning)
+8. Saves history if enabled
+
+### Context Compression
+Automatically compresses context when the total text exceeds the model's context window:
+- Strips HTML tags and removes boilerplate (cookie notices, navigation, etc.)
+- Removes common UI text (subscribe, sign in, etc.)
+- Falls back to intelligent sentence-level truncation
+- Leaves 20% of context window for the AI's response
 
 ### Security
 - API calls use fetch with Authorization header
@@ -106,16 +126,27 @@ Main controller handling:
 | Setting | Description |
 |---------|-------------|
 | API Key | Your OpenRouter key (stored in chrome.storage.local) |
+| Content Zoom | Adjust chat text size (50%-200%, persisted) |
 | Dark Mode | Auto-detect or manual toggle |
 | Save History | Persist messages between sessions |
 | Auto-approve | Skip permission prompts for JS execution |
 | AI Agent Name | Custom display name in chat bubbles |
+| Default AI Model | Model for new chats (optional) |
 
 ## Development
 
 ```bash
-# Run tests
-node tests/side-router.test.js
+# Run all tests
+npm test
+
+# Run unit tests only
+npm run test:unit
+
+# Run integration tests only
+npm run test:integration
+
+# Run E2E tests only
+npm run test:e2e
 
 # Reload extension
 # Go to chrome://extensions → click "Reload" on SideRouter card

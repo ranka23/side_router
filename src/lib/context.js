@@ -1,5 +1,17 @@
 // src/lib/context.js - Context picker popup and permission system
+// Manages the context picker UI (page, tabs, file context), renders
+// context chips with proper styling, and handles the permission flow
+// for AI requests to execute JavaScript on web pages.
+
+/**
+ * ContextModule provides context management for the chat.
+ * Handles page context, tab context, file context, permission requests,
+ * and context chip rendering.
+ * @param {SideRouter} app - The main application instance
+ * @returns {Object} Public API methods mixed into the app
+ */
 function ContextModule(app) {
+  /** Escape HTML entities for safe rendering */
   var _esc = function (str) {
     return String(str).replace(/[&<>"]/g, function (c) {
       if (c === "&") return "&" + "amp;";
@@ -10,6 +22,7 @@ function ContextModule(app) {
     });
   };
 
+  /** Open the context picker popup and load previews */
   var openContextPopup = function () {
     app._previousFocus = document.activeElement;
     if (app.dom.contextPopup) app.dom.contextPopup.classList.remove("hidden");
@@ -24,6 +37,7 @@ function ContextModule(app) {
     });
   };
 
+  /** Close the context picker popup and restore focus */
   var closeContextPopup = function () {
     if (app.dom.contextPopup) app.dom.contextPopup.classList.add("hidden");
     document.removeEventListener("keydown", app._focusTrapHandler);
@@ -31,6 +45,7 @@ function ContextModule(app) {
     if (app._previousFocus) app._previousFocus.focus();
   };
 
+  /** Switch between context tabs (page, tabs, file) */
   var switchContextTab = function (tabName) {
     document.querySelectorAll(".context-tab").forEach(function (t) {
       t.classList.toggle("active", t.dataset.tab === tabName);
@@ -41,6 +56,7 @@ function ContextModule(app) {
     if (panel) { panel.classList.remove("hidden"); panel.classList.add("active"); }
   };
 
+  /** Load and display the current page's content preview */
   var loadPagePreview = async function () {
     var preview = app.dom.contextPagePreview;
     if (!preview) return;
@@ -94,6 +110,7 @@ function ContextModule(app) {
     }
   };
 
+  /** Load the list of open Chrome tabs for selection */
   var loadTabsList = async function () {
     var list = app.dom.contextTabsList;
     if (!list) return;
@@ -151,6 +168,7 @@ function ContextModule(app) {
     }
   };
 
+  /** Handle file selection from the context file picker */
   var handleContextFile = function (fileList) {
     if (!fileList || !fileList.length) return;
     var f = fileList[0];
@@ -207,6 +225,7 @@ function ContextModule(app) {
     }
   };
 
+  /** Add the current page as context */
   var attachPageContext = function () {
     var preview = app.dom.contextPagePreview;
     if (!preview || !preview.dataset.pageTitle) return;
@@ -221,6 +240,7 @@ function ContextModule(app) {
     app.toast("Page context added", "success");
   };
 
+  /** Add selected tabs as context */
   var attachTabsContext = function (allTabs) {
     if (!app._contextSelectedTabs || !app._contextSelectedTabs.size) return;
     var ids = Array.from(app._contextSelectedTabs);
@@ -235,6 +255,7 @@ function ContextModule(app) {
     app.toast(app._contextSelectedTabs.size + " tab(s) added", "success");
   };
 
+  /** Add the selected file as context */
   var attachFileContext = function () {
     var preview = app.dom.contextFilePreview;
     if (!preview || !preview.dataset.fileName) return;
@@ -250,6 +271,10 @@ function ContextModule(app) {
     app.toast("File context added", "success");
   };
 
+  /**
+   * Render context chips above the input area.
+   * Each chip shows the context label with a styled X button (no background, white text).
+   */
   var renderContextChips = function () {
     var container = app.dom.contextChips;
     if (!container) return;
@@ -264,16 +289,25 @@ function ContextModule(app) {
         else if (item.type === "tab") label = "\uD83D\uDD17 " + item.title;
         else if (item.type === "file") label = "\uD83D\uDCCE " + item.name;
         var safeLabel = _esc(label);
-        chip.innerHTML = "<span>" + safeLabel + '</span><button class="context-chip-remove" aria-label="Remove context" data-idx="' + idx + '">\u00D7</button>';
-        chip.querySelector("button").addEventListener("click", function () {
+        // Use a button element for the X to ensure proper accessibility and styling
+        var removeBtn = document.createElement("button");
+        removeBtn.className = "context-chip-remove";
+        removeBtn.setAttribute("aria-label", "Remove context");
+        removeBtn.textContent = "\u00D7";
+        removeBtn.addEventListener("click", function () {
           app.contextItems.splice(idx, 1);
           renderContextChips();
         });
+        var labelSpan = document.createElement("span");
+        labelSpan.textContent = safeLabel;
+        chip.appendChild(labelSpan);
+        chip.appendChild(removeBtn);
         container.appendChild(chip);
       })(ci);
     }
   };
 
+  /** Request permission from the user for an AI action */
   var requestPermission = function (type, details) {
     return new Promise(function (resolve) {
       app._pendingPermission = { resolve: resolve, type: type, details: details };
@@ -293,6 +327,7 @@ function ContextModule(app) {
     });
   };
 
+  /** Deny the pending permission request */
   var denyPermission = function () {
     if (app._pendingPermission) {
       var remember = $("perm-remember");
@@ -304,6 +339,7 @@ function ContextModule(app) {
     document.removeEventListener("keydown", app._escKeyHandler);
   };
 
+  /** Approve the pending permission request */
   var approvePermission = function () {
     if (app._pendingPermission) {
       var remember = $("perm-remember");

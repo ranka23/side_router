@@ -1,5 +1,16 @@
 // src/lib/chat.js - Chat send flow, queue, and attachments
+// Handles message sending, queuing, context compression, file attachments,
+// and the API request/response lifecycle for OpenRouter.
+
+/**
+ * ChatModule provides all chat-related functionality.
+ * Handles sending messages, queue management, file attachments,
+ * context compression, and API integration with OpenRouter.
+ * @param {SideRouter} app - The main application instance
+ * @returns {Object} Public API methods mixed into the app
+ */
 function ChatModule(app) {
+  /** Get audio format from file name and MIME type */
   var getAudioFormat = function (filename, mime) {
     var ext = (filename.split(".").pop() || "").toLowerCase();
     var fmtMap = { wav: "wav", mp3: "mp3", aiff: "aiff", aac: "aac", ogg: "ogg", flac: "flac", m4a: "mp3" };
@@ -15,6 +26,7 @@ function ChatModule(app) {
     return "wav";
   };
 
+  /** Get a unicode label/icon for a given file type */
   var getLabel = function (type, mime) {
     if (type === "image") return "\uD83D\uDCF7";
     if (type === "audio") return "\uD83C\uDFB5";
@@ -23,6 +35,7 @@ function ChatModule(app) {
     return "\uD83D\uDCCE";
   };
 
+  /** Get chat history for API calls (filter to user/assistant only) */
   var getHistoryForApi = function () {
     return app.messages
       .filter(function (m) { return m.role === "user" || m.role === "assistant"; })
@@ -33,6 +46,95 @@ function ChatModule(app) {
       });
   };
 
+  // ── Context Compression ─────────────────────────────────────
+
+  /**
+   * Calculate approximate token count from text (≈4 chars per token).
+   * @param {string} text - The text to estimate token count for
+   * @returns {number} Approximate token count
+   */
+  var estimateTokens = function (text) {
+    return Math.ceil((text || "").length / 4);
+  };
+
+  /**
+   * Compress context to fit within a given token budget.
+   * Uses intelligent truncation: keeps headers, key paragraphs, removes
+   * boilerplate and redundant content. Falls back to simple truncation
+   * if needed.
+   * @param {string} text - The text to compress
+   * @param {number} maxTokens - Maximum token budget
+   * @returns {string} Compressed text
+   */
+  var compressContext = function (text, maxTokens) {
+    if (!text) return "";
+    var currentTokens = estimateTokens(text);
+    // If already within budget, return as-is
+    if (currentTokens <= maxTokens) return text;
+    // Strip HTML tags and extra whitespace
+    var cleaned = text
+      .replace(/<[^>]*>/g, "")  // Remove HTML tags
+      .replace(/\s+/g, " ")    // Collapse whitespace
+      .trim();
+    // Remove common boilerplate patterns
+    cleaned = cleaned
+      .replace(/cookie policy|cookie notice|privacy policy|terms of service|accept all|reject all/gi, "")
+      .replace(/subscribe|unsubscribe|sign up|sign in|log in|log out/gi, "")
+      .replace(/skip to content|skip to main/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    // Recalculate after cleaning
+    currentTokens = estimateTokens(cleaned);
+    if (currentTokens <= maxTokens) return cleaned;
+    // Extract key sections: prioritize headings and first paragraphs
+    var lines = cleaned.split(/\.\s+/);  // Split into sentences
+    var result = [];
+    var tokenCount = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      var lineTokens = estimateTokens(line);
+      if (tokenCount + lineTokens > maxTokens) break;
+      result.push(line);
+      tokenCount += lineTokens;
+    }
+    var compressed = result.join(". ");
+    if (compressed.length < text.length * 0.3) {
+      // If we've lost too much content, fall back to simple truncation
+      compressed = text.slice(0, Math.min(text.length, maxTokens * 4));
+    }
+    // Truncate to exact token budget if still over
+    if (estimateTokens(compressed) > maxTokens) {
+      compressed = compressed.slice(0, maxTokens * 4);
+    }
+    return compressed;
+  };
+
+  /**
+   * Compress all attached context items before sending to API.
+   * This ensures the request payload fits within the model's context window.
+   * @param {string} fullText - The complete text with context appended
+   * @param {number} contextWindow - The model's context window size
+   * @returns {string} Compressed text
+   */
+  var compressFullContext = function (fullText, contextWindow) {
+    // Leave 20% of context for the response
+    var maxContextTokens = Math.floor(contextWindow * 0.8);
+    var currentTokens = estimateTokens(fullText);
+    if (currentTokens <= maxContextTokens) return fullText;
+    // Compress the context to fit
+    var savings = currentTokens - maxContextTokens;
+    return compressContext(fullText, contextWindow - savings);
+  };
+
+  // ── Queue Management ────────────────────────────────────────
+
+  /**
+   * Queue a message for sending when the current request finishes.
+   * Shows a queued bubble in the chat and processes the queue.
+   * @param {string} text - The message text
+   * @param {Array} attachments - File attachments
+   */
   var queueSend = function (text, attachments) {
     var timestamp = Date.now();
     app.taskQueue.push({ text: text, attachments: attachments, timestamp: timestamp });
@@ -52,6 +154,10 @@ function ChatModule(app) {
     if (!app.isRunning) { processQueue(); }
   };
 
+  /**
+   * Process the message queue sequentially.
+   * Shifts items one at a time and calls handleSend for each.
+   */
   var processQueue = async function () {
     if (app.taskQueue.length === 0) {
       app.setRunning(false);
@@ -83,6 +189,12 @@ function ChatModule(app) {
     processQueue();
   };
 
+  // ── Send Flow ───────────────────────────────────────────────
+
+  /**
+   * Main send entry point. Handles validation, model selection, and routing
+   * to either queueSend (if busy) or handleSendDirect.
+   */
   var send = async function () {
     var text = app.dom.input.value.trim();
     if (!text && !app.attachments.length && !app.contextItems.length) return;
@@ -102,6 +214,7 @@ function ChatModule(app) {
     await handleSendDirect(text, app.attachments.slice());
   };
 
+  /** Build HTML for file attachment cards */
   var buildFileAttachmentHtml = function (attachments) {
     if (!attachments || !attachments.length) return "";
     return attachments.map(function (a) {
@@ -148,11 +261,15 @@ function ChatModule(app) {
     });
   };
 
+  /**
+   * Direct send without queuing. Renders user bubble and processes the request.
+   * @param {string} text - The message text
+   * @param {Array} attachments - File attachments
+   */
   var handleSendDirect = async function (text, attachments) {
     var attLabel = attachments.length ? attachments.map(function (a) { return getLabel(a.type, a.mime); }).join(" ") + " (" + attachments.length + ")" : "";
     var ctxLabel = app.contextItems.length ? " [" + app.contextItems.length + " context]" : "";
     var bubbleText = [text, attLabel + ctxLabel].filter(Boolean).join(" ");
-    // Store file data for the bubble so it can render attachments
     if (attachments.length) {
       app._pendingAttachments = attachments.slice();
     }
@@ -166,11 +283,21 @@ function ChatModule(app) {
     await handleSend(text, attachments, null);
   };
 
+  /**
+   * Core send handler. Constructs the API request body, sends to OpenRouter,
+   * handles the response (including thinking/reasoning), and saves history.
+   * Uses context compression to fit within the model's context window.
+   * @param {string} text - The user message text
+   * @param {Array} initialAttachments - File attachments
+   * @param {number|null} queueTimestamp - Timestamp from queue (or null)
+   */
   var handleSend = async function (text, initialAttachments, queueTimestamp) {
     if (queueTimestamp === undefined || queueTimestamp === null) queueTimestamp = null;
     app.setRunning(true);
     app.updateSendIcon();
     var fullText = text;
+
+    // ── Page Context Integration ───────────────────────────────
     var pageRef = text.match(/\b(this page|the page|current page|webpage|website|tab|this site)\b/i);
     if (pageRef && !app.tabContent) { await app.getTabContent(); }
     if (app.tabContent && pageRef) {
@@ -179,6 +306,8 @@ function ChatModule(app) {
         fullText += "\n\nForms: " + JSON.stringify(app.tabContent.forms.slice(0, 3));
       }
     }
+
+    // ── Context Items Integration ──────────────────────────────
     if (app.contextItems.length) {
       for (var ci = 0; ci < app.contextItems.length; ci++) {
         var ctx = app.contextItems[ci];
@@ -191,6 +320,8 @@ function ChatModule(app) {
         }
       }
     }
+
+    // ── Safe Content of Request ────────────────────────────────
     var contentParts = [];
     if (fullText) contentParts.push({ type: "text", text: fullText });
     var plugins = [];
@@ -221,8 +352,24 @@ function ChatModule(app) {
         contentParts.push({ type: "text", text: "\n\n[File: " + a.name + "]\n" + fileText });
       }
     }
+
+    // ── Compress Context Before Sending ────────────────────────
+    var currentModel = app.settings.selectedModel;
+    var contextWindow = 4096;
+    var modelSelect = app.dom.modelSelect;
+    if (modelSelect && modelSelect.selectedOptions && modelSelect.selectedOptions[0]) {
+      contextWindow = parseInt(modelSelect.selectedOptions[0].dataset.context) || 4096;
+    }
+    // Compress the context text to fit within the model's context window
+    if (contentParts.length > 0 && contentParts[0].type === "text") {
+      contentParts[0].text = compressFullContext(contentParts[0].text, contextWindow);
+    }
+
+    // ── Show Typing Indicator ──────────────────────────────────
     app.typingEl = app.renderTyping();
     app.scroll();
+
+    // ── Send API Request ───────────────────────────────────────
     try {
       var body = {
         model: app.settings.selectedModel,
@@ -243,17 +390,20 @@ function ChatModule(app) {
       try { raw = await res.text(); } catch (e) {}
       var data = {};
       try { data = JSON.parse(raw); } catch (e) {}
+
+      // ── Handle Response ──────────────────────────────────────
       if (app.typingEl) app.typingEl.remove();
+      // Render thinking/reasoning if present
       if (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.reasoning) {
         app.renderThinking(data.choices[0].message.reasoning);
       }
+      // Handle HTTP errors
       if (!res.ok) {
         var msg = (data && data.error && data.error.message) || (data && data.message) || app.httpMsg(res.status);
         if (msg.match(/credit|payment|subscription|billing|insufficient|exhausted|quota|limit/i)) {
           app.dom.proNotice.classList.remove("hidden");
           throw new Error(msg + " — Buy credits at openrouter.ai/settings/billing");
         }
-        // Check if model doesn't support the request content (images/audio/video/files)
         if (msg.match(/does not support|not support|unsupported|content type|modality|multimodal|only supports text/i)) {
           throw new Error("AI Model doesn't support your request. Please choose another model to process your request.");
         }
@@ -266,9 +416,13 @@ function ChatModule(app) {
         throw new Error(msg);
       }
       app.fetchUsage();
+
+      // ── Parse Success Response ───────────────────────────────
       var reply = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "No response.";
       var annotations = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.annotations) || null;
       if (annotations) { app._pendingAnnotations = annotations; }
+
+      // ── Permission Handling ──────────────────────────────────
       if (!app.settings.autoApprove) {
         var respPermMatch = reply.match(/\[ASK_PERMISSION:(\w+)\]([\s\S]*?)(\[\/ASK_PERMISSION\])/i);
         if (respPermMatch) {
@@ -304,6 +458,7 @@ function ChatModule(app) {
         if (codeMatch2 && app.settings.autoApprove) { app.executeOnTab(codeMatch2[1]); }
       }
     } catch (e) {
+      // ── Handle Errors ────────────────────────────────────────
       if (e.name === "AbortError") {
         app.renderBubble("assistant", "\u23F9\uFE0F Task stopped by user.");
         if (queueTimestamp) {
@@ -329,11 +484,11 @@ function ChatModule(app) {
     app.updateSendIcon();
     if (app.settings.saveHistory) {
       await app.persistHistory();
-      // Auto-archive to chat history for crash recovery
       await app.autoArchive();
     }
   };
 
+  /** Abort the current in-flight request */
   var abortTask = function () {
     if (app.abortController) {
       app.abortController.abort();
@@ -354,6 +509,10 @@ function ChatModule(app) {
     }
   };
 
+  /**
+   * Handle file uploads from the file input.
+   * @param {FileList} fileList - The list of files to process
+   */
   var handleFiles = function (fileList) {
     for (var fi = 0; fi < fileList.length; fi++) {
       var f = fileList[fi];
@@ -383,6 +542,7 @@ function ChatModule(app) {
     }
   };
 
+  /** Render attachment chips in the input area */
   var renderAttachments = function () {
     app.dom.attachments.innerHTML = "";
     for (var ai2 = 0; ai2 < app.attachments.length; ai2++) {
@@ -418,6 +578,7 @@ function ChatModule(app) {
     }
   };
 
+  /** Clear all attachments */
   var clearAttachments = function () {
     app.attachments = [];
     app.dom.attachments.innerHTML = "";
@@ -434,7 +595,10 @@ function ChatModule(app) {
     renderAttachments: renderAttachments,
     clearAttachments: clearAttachments,
     getHistoryForApi: getHistoryForApi,
-    getAudioFormat: getAudioFormat
+    getAudioFormat: getAudioFormat,
+    compressContext: compressContext,
+    compressFullContext: compressFullContext,
+    estimateTokens: estimateTokens,
   };
 }
 

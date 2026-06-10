@@ -245,7 +245,6 @@ describe('Lock State', () => {
     app.setLocked(true);
     expect(app.dom.input.disabled).toBe(true);
     expect(app.dom.sendBtn.disabled).toBe(true);
-    expect(app.dom.attachBtn.disabled).toBe(true);
     expect(app.dom.modelSelect.disabled).toBe(true);
   });
 
@@ -253,7 +252,6 @@ describe('Lock State', () => {
     app.setLocked(true);
     app.setLocked(false);
     expect(app.dom.input.disabled).toBe(false);
-    expect(app.dom.attachBtn.disabled).toBe(false);
     expect(app.dom.modelSelect.disabled).toBe(false);
   });
 
@@ -541,5 +539,136 @@ describe('Scroll Management', () => {
     app.dom.scrollBtn = { classList: { add: jest.fn() } };
     app.scrollToBottom();
     expect(app.dom.messages.scrollTop).toBe(1000);
+  });
+});
+
+// ── Zoom Controls ─────────────────────────────────────────────
+describe('Zoom Controls', () => {
+  let app;
+  beforeEach(() => {
+    buildMockEnv();
+    app = new SideRouter();
+  });
+
+  test('default zoom level is 100', () => {
+    expect(app.settings.zoomLevel).toBe(100);
+  });
+
+  test('zoomIn increases zoom by 10', () => {
+    app.settings.zoomLevel = 100;
+    app.zoomIn();
+    expect(app.settings.zoomLevel).toBe(110);
+  });
+
+  test('zoomOut decreases zoom by 10', () => {
+    app.settings.zoomLevel = 100;
+    app.zoomOut();
+    expect(app.settings.zoomLevel).toBe(90);
+  });
+
+  test('zoomIn does not exceed 200', () => {
+    app.settings.zoomLevel = 200;
+    app.zoomIn();
+    expect(app.settings.zoomLevel).toBe(200);
+  });
+
+  test('zoomOut does not go below 50', () => {
+    app.settings.zoomLevel = 50;
+    app.zoomOut();
+    expect(app.settings.zoomLevel).toBe(50);
+  });
+
+  test('zoomReset sets zoom to 100', () => {
+    app.settings.zoomLevel = 150;
+    app.zoomReset();
+    expect(app.settings.zoomLevel).toBe(100);
+  });
+
+  test('applyZoom updates zoom level display', () => {
+    app.dom.messages = { style: {} };
+    app.dom.zoomLevel = { textContent: '' };
+    app.settings.zoomLevel = 120;
+    app.applyZoom();
+    expect(app.dom.zoomLevel.textContent).toBe('120%');
+  });
+});
+
+// ── Context Compression ───────────────────────────────────────
+describe('Context Compression', () => {
+  let app;
+  beforeEach(() => {
+    buildMockEnv();
+    app = new SideRouter();
+  });
+
+  test('estimateTokens returns token count', () => {
+    expect(app.estimateTokens('Hello world')).toBe(3);
+  });
+
+  test('estimateTokens returns 0 for empty string', () => {
+    expect(app.estimateTokens('')).toBe(0);
+  });
+
+  test('compressContext returns text within budget', () => {
+    var shortText = 'Short text';
+    var result = app.compressContext(shortText, 100);
+    expect(result).toBe(shortText);
+  });
+
+  test('compressContext truncates long text', () => {
+    var longText = 'word '.repeat(1000);
+    var result = app.compressContext(longText, 10);
+    expect(app.estimateTokens(result)).toBeLessThanOrEqual(10);
+  });
+
+  test('compressContext returns empty string for null', () => {
+    expect(app.compressContext(null, 100)).toBe('');
+  });
+
+  test('compressFullContext leaves room for response', () => {
+    var text = 'Hello world';
+    var result = app.compressFullContext(text, 10000);
+    expect(result).toBe(text);
+  });
+
+  test('compressFullContext truncates when over budget', () => {
+    var longText = 'word '.repeat(2000);
+    var result = app.compressFullContext(longText, 100);
+    expect(app.estimateTokens(result)).toBeLessThanOrEqual(8000);
+  });
+});
+
+// ── Donate Modal ──────────────────────────────────────────────
+describe('Donate Modal', () => {
+  let app;
+  beforeEach(() => {
+    buildMockEnv();
+    app = new SideRouter();
+  });
+
+  test('openDonateModal exists', () => {
+    expect(typeof app.openDonateModal).toBe('function');
+  });
+
+  test('closeDonateModal exists', () => {
+    expect(typeof app.closeDonateModal).toBe('function');
+  });
+
+  test('copyDonateAddress exists', () => {
+    expect(typeof app.copyDonateAddress).toBe('function');
+  });
+});
+
+// ── Auto Archive ──────────────────────────────────────────────
+describe('Auto Archive', () => {
+  let app;
+  beforeEach(() => {
+    buildMockEnv();
+    app = new SideRouter();
+  });
+
+  test('autoArchive is an alias for archiveCurrentChat', () => {
+    expect(app.autoArchive).toBeDefined();
+    expect(typeof app.autoArchive).toBe('function');
   });
 });

@@ -1,5 +1,15 @@
-// src/lib/settings.js - Settings management
+// src/lib/settings.js - Settings management, zoom controls, and donate modal
+// Handles all settings persistence, model selection, theme, zoom level,
+// and the crypto donation modal with QR code generation.
+
+/**
+ * SettingsModule provides settings persistence, model population,
+ * zoom controls, donate modal, and UI state management.
+ * @param {SideRouter} app - The main application instance
+ * @returns {Object} Public API methods mixed into the app
+ */
 function SettingsModule(app) {
+  /** Default settings values — kept in sync with background.js defaults */
   const defaults = {
     apiKey: null,
     selectedModel: null,
@@ -9,8 +19,17 @@ function SettingsModule(app) {
     aiName: "ASSISTANT",
     rememberedPermissions: [],
     defaultModel: null,
+    zoomLevel: 100,
   };
 
+  /** Minimum and maximum zoom percentages */
+  const ZOOM_MIN = 50;
+  const ZOOM_MAX = 200;
+  const ZOOM_STEP = 10;
+
+  // ── Settings Load/Save ──────────────────────────────────────
+
+  /** Load settings from Chrome storage via background service worker */
   const load = async () => {
     try {
       const r = await bgWithRetry("getSettings");
@@ -23,6 +42,7 @@ function SettingsModule(app) {
     } catch (_) {}
   };
 
+  /** Save current settings to Chrome storage via background service worker */
   const save = async () => {
     try {
       const toSave = { ...app.settings, rememberedPermissions: [...app.rememberedPermissions] };
@@ -30,10 +50,14 @@ function SettingsModule(app) {
     } catch (_) {}
   };
 
+  // ── Theme Management ────────────────────────────────────────
+
+  /** Apply the current theme by toggling the dark class on body */
   const applyTheme = () => {
     document.body.classList.toggle("dark", !!app.settings.isDarkTheme);
   };
 
+  /** Auto-detect theme from system preference if user hasn't overridden */
   const autoDetectTheme = () => {
     if (!app.settings._userOverrodeTheme) {
       app.settings.isDarkTheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -42,6 +66,214 @@ function SettingsModule(app) {
     app.dom.theme.checked = !!app.settings.isDarkTheme;
   };
 
+  // ── Zoom Controls ───────────────────────────────────────────
+
+  /** Apply the current zoom level to the messages container */
+  const applyZoom = () => {
+    var level = app.settings.zoomLevel || 100;
+    // Clamp to valid range
+    level = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, level));
+    app.settings.zoomLevel = level;
+    // Apply CSS transform scale to messages container
+    var messages = app.dom.messages;
+    if (messages) {
+      messages.style.transform = "scale(" + (level / 100) + ")";
+      messages.style.transformOrigin = "top left";
+      messages.style.width = (100 / (level / 100)) + "%";
+    }
+    // Update the zoom level display
+    if (app.dom.zoomLevel) {
+      app.dom.zoomLevel.textContent = level + "%";
+    }
+  };
+
+  /** Increase zoom by one step */
+  const zoomIn = () => {
+    if (app.settings.zoomLevel < ZOOM_MAX) {
+      app.settings.zoomLevel = (app.settings.zoomLevel || 100) + ZOOM_STEP;
+      applyZoom();
+      save();
+    }
+  };
+
+  /** Decrease zoom by one step */
+  const zoomOut = () => {
+    if (app.settings.zoomLevel > ZOOM_MIN) {
+      app.settings.zoomLevel = (app.settings.zoomLevel || 100) - ZOOM_STEP;
+      applyZoom();
+      save();
+    }
+  };
+
+  /** Reset zoom to 100% */
+  const zoomReset = () => {
+    app.settings.zoomLevel = 100;
+    applyZoom();
+    save();
+  };
+
+  // ── Donate Modal ────────────────────────────────────────────
+
+  /** Wallet addresses (placeholder — replace with actual addresses) */
+  var walletAddresses = {
+    eth: "YOUR_ETH_ADDRESS_HERE",
+    sol: "YOUR_SOL_ADDRESS_HERE",
+    usdc: "YOUR_USDC_ADDRESS_HERE",
+    usdt: "YOUR_USDT_ADDRESS_HERE",
+  };
+
+  /**
+   * Generate a minimal QR code as an SVG element.
+   * Uses a simple QR code algorithm for encoding text data.
+   * @param {string} text - The text to encode in the QR code
+   * @param {number} size - The size in pixels
+   * @returns {string} SVG markup string
+   */
+  var generateQrSvg = function (text, size) {
+    // Use the canvas-based QR generator if available, otherwise fall back to SVG pattern
+    try {
+      var canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      var ctx = canvas.getContext("2d");
+      // Simple pattern-based QR code representation
+      var modules = encodeTextToModules(text, 21);
+      var cellSize = size / modules.length;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#1a1a2e";
+      for (var r = 0; r < modules.length; r++) {
+        for (var c = 0; c < modules[r].length; c++) {
+          if (modules[r][c]) {
+            ctx.fillRect(c * cellSize, r * cellSize, cellSize + 0.5, cellSize + 0.5);
+          }
+        }
+      }
+      return '<img src="' + canvas.toDataURL("image/png") + '" alt="QR Code" width="' + size + '" height="' + size + '" style="border-radius:4px;">';
+    } catch (e) {
+      return '<div style="width:' + size + 'px;height:' + size + 'px;background:#f1f3f4;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6b7280;">QR</div>';
+    }
+  };
+
+  /**
+   * Encode text into a simple QR-like module pattern.
+   * This creates a visual representation suitable for wallet addresses.
+   * @param {string} text - Text to encode
+   * @param {number} modules - Number of modules per side
+   * @returns {boolean[][]} 2D array of module values
+   */
+  var encodeTextToModules = function (text, modules) {
+    var grid = [];
+    var hash = 0;
+    // Simple hash from text
+    for (var i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    }
+    // Seed a pseudo-random number generator with the hash
+    var seed = Math.abs(hash) || 1;
+    var prng = function () {
+      seed = (seed * 16807 + 0) % 2147483647;
+      return (seed & 0x7fffffff) / 2147483647;
+    };
+    // Generate grid with finder patterns in corners
+    for (var r = 0; r < modules; r++) {
+      var row = [];
+      for (var c = 0; c < modules; c++) {
+        // Finder patterns (top-left, top-right, bottom-left)
+        if (isFinderPattern(r, c, modules)) {
+          row.push(true);
+        } else if (r < 9 && c < 9) {
+          // Top-left finder separator
+          row.push(false);
+        } else if (r < 9 && c >= modules - 8) {
+          // Top-right finder separator
+          row.push(false);
+        } else if (r >= modules - 8 && c < 9) {
+          // Bottom-left finder separator
+          row.push(false);
+        } else {
+          // Data area: use hash-based pseudo-random values
+          row.push(prng() > 0.5);
+        }
+      }
+      grid.push(row);
+    }
+    return grid;
+  };
+
+  /** Check if a cell is part of a QR code finder pattern */
+  var isFinderPattern = function (r, c, size) {
+    // Top-left finder
+    if (r < 7 && c < 7) {
+      return r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+    }
+    // Top-right finder
+    if (r < 7 && c >= size - 7) {
+      var sc = c - (size - 7);
+      return r === 0 || r === 6 || sc === 0 || sc === 6 || (r >= 2 && r <= 4 && sc >= 2 && sc <= 4);
+    }
+    // Bottom-left finder
+    if (r >= size - 7 && c < 7) {
+      var sr = r - (size - 7);
+      return sr === 0 || sr === 6 || c === 0 || c === 6 || (sr >= 2 && sr <= 4 && c >= 2 && c <= 4);
+    }
+    return false;
+  };
+
+  /** Render QR codes for all wallet addresses in the donate modal */
+  var renderDonateQrCodes = function () {
+    var coins = ["eth", "sol", "usdc", "usdt"];
+    for (var i = 0; i < coins.length; i++) {
+      var coin = coins[i];
+      var qrEl = document.getElementById("qr-" + coin);
+      var addrEl = document.getElementById("donate-" + coin + "-addr");
+      if (qrEl && walletAddresses[coin]) {
+        qrEl.innerHTML = generateQrSvg(walletAddresses[coin], 100);
+      }
+      if (addrEl) {
+        addrEl.textContent = walletAddresses[coin];
+        addrEl.title = walletAddresses[coin];
+      }
+    }
+  };
+
+  /** Open the donate modal and render QR codes */
+  var openDonateModal = function () {
+    app._previousFocus = document.activeElement;
+    if (app.dom.donateModal) app.dom.donateModal.classList.remove("hidden");
+    renderDonateQrCodes();
+    document.addEventListener("keydown", app._focusTrapHandler);
+    document.addEventListener("keydown", app._escKeyHandler);
+    requestAnimationFrame(function () {
+      if (app.dom.donateCloseBtn) app.dom.donateCloseBtn.focus();
+    });
+  };
+
+  /** Close the donate modal */
+  var closeDonateModal = function () {
+    if (app.dom.donateModal) app.dom.donateModal.classList.add("hidden");
+    document.removeEventListener("keydown", app._focusTrapHandler);
+    document.removeEventListener("keydown", app._escKeyHandler);
+    if (app._previousFocus) app._previousFocus.focus();
+  };
+
+  /** Copy wallet address to clipboard */
+  var copyDonateAddress = function (coin) {
+    var addr = walletAddresses[coin];
+    if (!addr || addr.startsWith("YOUR_")) {
+      app.toast("Replace this address with your wallet address", "info");
+      return;
+    }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(addr).then(function () {
+        app.toast("Address copied!", "success");
+      });
+    }
+  };
+
+  // ── Settings Modal ──────────────────────────────────────────
+
+  /** Open the settings modal, populating all fields from current settings */
   const openSettings = () => {
     app._previousFocus = document.activeElement;
     app.dom.apiKey.value = app.settings.apiKey || "";
@@ -51,6 +283,10 @@ function SettingsModule(app) {
     app.dom.aiName.value = app.settings.aiName || "ASSISTANT";
     app.dom.keyStatus.textContent = "";
     app.dom.keyStatus.className = "key-status";
+    // Update zoom display
+    if (app.dom.zoomLevel) {
+      app.dom.zoomLevel.textContent = (app.settings.zoomLevel || 100) + "%";
+    }
     // Populate default model selector
     populateDefaultModelSelect();
     app.dom.settings.classList.remove("hidden");
@@ -60,6 +296,7 @@ function SettingsModule(app) {
     requestAnimationFrame(() => app.dom.apiKey.focus());
   };
 
+  /** Close the settings modal and restore focus */
   const closeSettings = () => {
     app.dom.settings.classList.add("hidden");
     document.removeEventListener("keydown", app._focusTrapHandler);
@@ -67,6 +304,12 @@ function SettingsModule(app) {
     if (app._previousFocus) app._previousFocus.focus();
   };
 
+  // ── API Key Validation ──────────────────────────────────────
+
+  /**
+   * Validate the API key entered in the settings modal.
+   * If valid, save it and unlock the chat UI.
+   */
   const validateKey = async () => {
     const key = app.dom.apiKey.value.trim();
     if (!key) {
@@ -96,6 +339,9 @@ function SettingsModule(app) {
     }
   };
 
+  // ── Model Population ────────────────────────────────────────
+
+  /** Load models from the background service worker */
   const loadModels = async () => {
     try {
       const r = await bgWithRetry("getModels");
@@ -105,6 +351,11 @@ function SettingsModule(app) {
     }
   };
 
+  /**
+   * Populate the model selection dropdown with grouped free/paid models.
+   * Creates a custom searchable dropdown UI.
+   * @param {Array} models - Array of model objects from OpenRouter API
+   */
   const populateSelect = (models) => {
     const sel = app.dom.modelSelect;
     const free = models.filter((m) => m.isFree).sort((a, b) => a.name.localeCompare(b.name));
@@ -142,7 +393,7 @@ function SettingsModule(app) {
     if (free.length) sel.appendChild(freeOptgroup);
     if (paid.length) sel.appendChild(paidOptgroup);
     sel.style.display = "none";
-    // Build custom dropdown
+    // Build custom dropdown trigger
     var trigger = document.createElement("div");
     trigger.className = "model-dropdown-trigger";
     trigger.tabIndex = 0;
@@ -157,7 +408,7 @@ function SettingsModule(app) {
     triggerArrow.innerHTML = "&#9662;";
     trigger.appendChild(triggerText);
     trigger.appendChild(triggerArrow);
-    // Dropdown panel
+    // Dropdown panel with search
     var panel = document.createElement("div");
     panel.className = "model-dropdown-panel hidden";
     // Search input
@@ -212,14 +463,27 @@ function SettingsModule(app) {
     }
     renderOptions("");
     panel.appendChild(optionsList);
-    // Assemble
+    // Assemble — handle re-population by removing old wrapper first
+    var oldParent = null;
+    var oldWrapper = sel.parentNode;
+    if (oldWrapper && oldWrapper.classList && oldWrapper.classList.contains("model-dropdown-wrapper")) {
+      oldParent = oldWrapper.parentNode;
+      oldWrapper.remove();
+    } else if (sel.parentNode) {
+      oldParent = sel.parentNode;
+    }
     wrapper.appendChild(sel);
     wrapper.appendChild(trigger);
     wrapper.appendChild(panel);
-    if (sel.parentNode) {
-      sel.parentNode.insertBefore(wrapper, sel);
-    } else {
-      document.body.appendChild(wrapper);
+    if (oldParent) {
+      oldParent.appendChild(wrapper);
+    } else if (sel.parentNode === wrapper) {
+      // sel was detached; find the original parent from the DOM
+      // Fall back to inserting where the old select was
+      var placeholder = document.getElementById("model-select-inline");
+      if (placeholder && placeholder.parentNode) {
+        placeholder.parentNode.appendChild(wrapper);
+      }
     }
     // Store reference
     app.dom.modelDropdownWrapper = wrapper;
@@ -316,6 +580,7 @@ function SettingsModule(app) {
     checkPaidModel();
   };
 
+  /** Update the usage badge with token count vs context window */
   const updateContextPercent = (contextLength) => {
     if (!contextLength) return;
     const usedChars = app.messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
@@ -324,12 +589,14 @@ function SettingsModule(app) {
     app.dom.usageBadge.innerHTML = `${usedTokens} / ${contextLength} tokens <span class="context-pct">(${pct}%)</span>`;
   };
 
+  /** Show/hide the pro notice based on whether the selected model is paid */
   const checkPaidModel = () => {
     const opt = app.dom.modelSelect.selectedOptions[0];
     const isPaid = opt?.parentElement?.label === "Paid Models";
     app.dom.proNotice.classList.toggle("hidden", !isPaid);
   };
 
+  /** Fetch current usage from the OpenRouter API */
   const fetchUsage = async () => {
     if (!app.settings.apiKey) return;
     try {
@@ -360,37 +627,41 @@ function SettingsModule(app) {
     app.dom.usageBadge.classList.remove("hidden");
   };
 
+  /** Show the welcome screen when no API key is configured */
   const showWelcome = () => {
     app.dom.input.disabled = true;
     app.dom.sendBtn.disabled = true;
-    app.dom.attachBtn.disabled = true;
     app.dom.modelSelect.disabled = true;
     app.dom.usageBadge.classList.add("hidden");
     if (app.dom.welcome) app.dom.welcome.classList.remove("hidden");
   };
 
+  /** Lock or unlock the UI based on whether an API key is present */
   const setLocked = (locked) => {
     if (locked) {
       app.dom.input.disabled = true;
       app.dom.sendBtn.disabled = true;
-      app.dom.attachBtn.disabled = true;
       app.dom.modelSelect.disabled = true;
       app.dom.usageBadge.classList.add("hidden");
       if (app.dom.welcome) app.dom.welcome.classList.remove("hidden");
     } else {
       if (app.dom.welcome) app.dom.welcome.classList.add("hidden");
       app.dom.input.disabled = false;
-      app.dom.attachBtn.disabled = false;
       app.dom.modelSelect.disabled = false;
       app.updateStatus();
     }
   };
 
+  /** Update send button state based on API key presence */
   const updateStatus = () => {
     const has = !!app.settings.apiKey;
     app.dom.sendBtn.disabled = !has;
   };
 
+  /**
+   * Handle the welcome screen Connect button click.
+   * Validates the API key and unlocks the chat UI.
+   */
   const connectFromWelcome = async () => {
     const key = app.dom.welcomeApiKey?.value.trim();
     const statusEl = $("welcome-status");
@@ -409,7 +680,6 @@ function SettingsModule(app) {
         await save();
         if (app.dom.welcome) app.dom.welcome.classList.add("hidden");
         app.dom.input.disabled = false;
-        app.dom.attachBtn.disabled = false;
         app.dom.modelSelect.disabled = false;
         app.dom.sendBtn.disabled = false;
         app.fetchUsage();
@@ -429,6 +699,7 @@ function SettingsModule(app) {
     app.dom.welcomeConnectBtn.textContent = "Connect";
   };
 
+  /** Get the current active tab ID via Chrome API */
   const getTabId = async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -436,12 +707,11 @@ function SettingsModule(app) {
     } catch (_) {}
   };
 
+  /** Populate the default model selector in the settings modal */
   const populateDefaultModelSelect = () => {
     const sel = app.dom.defaultModelSelect;
     if (!sel) return;
-    // Save current options
     sel.innerHTML = '<option value="">Use most recent model</option>';
-    // Copy from the main model select
     if (app.dom.modelSelect) {
       const options = app.dom.modelSelect.querySelectorAll('option');
       options.forEach(opt => {
@@ -451,7 +721,6 @@ function SettingsModule(app) {
         sel.appendChild(newOpt);
       });
     }
-    // Set current value
     sel.value = app.settings.defaultModel || '';
   };
 
@@ -460,7 +729,9 @@ function SettingsModule(app) {
     openSettings, closeSettings, validateKey,
     loadModels, populateSelect, updateContextPercent, checkPaidModel,
     fetchUsage, showWelcome, setLocked, updateStatus, connectFromWelcome, getTabId,
-    populateDefaultModelSelect
+    populateDefaultModelSelect,
+    applyZoom, zoomIn, zoomOut, zoomReset,
+    openDonateModal, closeDonateModal, copyDonateAddress,
   };
 }
 

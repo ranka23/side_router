@@ -22,7 +22,6 @@ describe('Integration: Message Flow', () => {
     expect(app.dom.input.disabled).toBe(true);
     app.setLocked(false);
     expect(app.dom.input.disabled).toBe(false);
-    expect(app.dom.attachBtn.disabled).toBe(false);
     expect(app.dom.modelSelect.disabled).toBe(false);
   });
 

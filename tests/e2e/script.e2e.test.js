@@ -23,7 +23,7 @@ describe('E2E: Complete User Journey', () => {
     // 3. After validation, UI unlocks
     app.setLocked(false);
     expect(app.dom.input.disabled).toBe(false);
-    expect(app.dom.attachBtn.disabled).toBe(false);
+    expect(app.dom.modelSelect.disabled).toBe(false);
 
     // 4. User types message and sends
     app.renderBubble('user', 'What is JavaScript?');

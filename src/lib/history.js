@@ -257,6 +257,10 @@ function HistoryModule(app) {
     app.toast("All chats deleted", "info");
   };
 
+  /** Auto-archive the current chat (alias for archiveCurrentChat) */
+  var autoArchive = archiveCurrentChat;
+
+  /** Clear the current chat and reset the UI */
   var clearChat = function () {
     if (!confirm("Clear all messages?")) return;
     app.messages = [];
@@ -272,6 +276,7 @@ function HistoryModule(app) {
     loadChatHistories: loadChatHistories,
     saveChatHistories: saveChatHistories,
     archiveCurrentChat: archiveCurrentChat,
+    autoArchive: autoArchive,
     newChat: newChat,
     openHistoryPopup: openHistoryPopup,
     closeHistoryPopup: closeHistoryPopup,
