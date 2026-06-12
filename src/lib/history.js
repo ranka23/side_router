@@ -29,6 +29,24 @@ function HistoryModule(app) {
       var data = await chrome.storage.local.get(["archivedChats", "currentChatId"]);
       app.chatHistories = data.archivedChats || [];
       app.currentChatId = data.currentChatId || null;
+      // Deduplicate: when titles and message counts match, keep the most recent
+      if (app.chatHistories.length > 1) {
+        var seen = {};
+        var deduped = [];
+        for (var i = 0; i < app.chatHistories.length; i++) {
+          var chat = app.chatHistories[i];
+          var key = chat.title + "|" + (chat.messages ? chat.messages.length : 0);
+          if (!seen[key] || chat.updatedAt > seen[key].updatedAt) {
+            if (seen[key]) {
+              // Replace existing entry with this more recent one
+              deduped = deduped.filter(function (c) { return c !== seen[key]; });
+            }
+            seen[key] = chat;
+            deduped.push(chat);
+          }
+        }
+        app.chatHistories = deduped;
+      }
     } catch (e) {}
   };
 
