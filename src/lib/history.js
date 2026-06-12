@@ -41,28 +41,32 @@ function HistoryModule(app) {
   };
 
   var generateChatTitle = function (messages) {
-    // Extract first user message that contains meaningful content
-    for (var i = 0; i < messages.length; i++) {
-      if (messages[i].role === "user" && messages[i].content) {
-        var content = messages[i].content.trim();
-        // Remove any file attachment labels
-        content = content.replace(/\s*📷|🎵|🎬|📄|📎/g, '');
-        // Remove markdown formatting
-        content = content.replace(/[#*`_\[\]()~]/g, '');
-        // Take first 50 chars, clean up
-        var title = content.slice(0, 50).trim();
-        if (title.length < 3) continue; // skip very short messages
-        return title + (content.length > 50 ? "..." : "");
+    // Extract the last user message for the title to help distinguish chats
+    var lastUserMsg = null;
+    var lastAssistantMsg = null;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (!lastUserMsg && messages[i].role === "user" && messages[i].content) {
+        lastUserMsg = messages[i];
       }
+      if (!lastAssistantMsg && messages[i].role === "assistant" && messages[i].content) {
+        lastAssistantMsg = messages[i];
+      }
+      if (lastUserMsg && lastAssistantMsg) break;
     }
-    // Fallback: use first assistant message or default
-    for (var i = 0; i < messages.length; i++) {
-      if (messages[i].role === "assistant" && messages[i].content) {
-        var content = messages[i].content.trim().replace(/[#*`_\[\]()~]/g, '');
-        var title = content.slice(0, 50).trim();
-        if (title.length >= 3) {
-          return title + (content.length > 50 ? "..." : "");
-        }
+    // Prefer last user message, fall back to last assistant message
+    var source = lastUserMsg || lastAssistantMsg;
+    if (source) {
+      var content = source.content.trim();
+      // Remove any file attachment labels
+      content = content.replace(/\s*📷|🎵|🎬|📄|📎/g, '');
+      // Remove markdown formatting
+      content = content.replace(/[#*`_\[\]()~]/g, '');
+      // Collapse whitespace
+      content = content.replace(/\s+/g, ' ');
+      // Take first 40 chars, clean up
+      var title = content.slice(0, 40).trim();
+      if (title.length >= 3) {
+        return title + (content.length > 40 ? "..." : "");
       }
     }
     return "New Chat";
@@ -74,14 +78,17 @@ function HistoryModule(app) {
     if (existing) {
       existing.messages = app.messages.slice();
       existing.updatedAt = Date.now();
+      existing.title = generateChatTitle(app.messages);
     } else {
+      var newId = Date.now().toString();
       app.chatHistories.unshift({
-        id: Date.now().toString(),
+        id: newId,
         title: generateChatTitle(app.messages),
         messages: app.messages.slice(),
         createdAt: Date.now(),
         updatedAt: Date.now()
       });
+      app.currentChatId = newId;
     }
     await saveChatHistories();
   };
@@ -144,7 +151,7 @@ function HistoryModule(app) {
       return "<div class=\"history-item\" role=\"listitem\" tabindex=\"0\" data-id=\"" + chat.id + "\" aria-label=\"" + safeTitle + "\">" +
         "<div class=\"history-item-main\">" +
         "<div class=\"history-title\">" + safeTitle + "</div>" +
-        "<div class=\"history-date\">" + new Date(chat.updatedAt).toLocaleDateString() + " \u00B7 " + chat.messages.length + " messages" + modelInfo + "</div>" +
+        "<div class=\"history-date\">" + new Date(chat.updatedAt).toLocaleDateString() + " " + new Date(chat.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " \u00B7 " + chat.messages.length + " messages" + modelInfo + "</div>" +
         "</div>" +
         "<div class=\"history-item-actions\">" +
         "<button class=\"history-rename-btn\" data-rename-id=\"" + chat.id + "\" aria-label=\"Rename chat: " + safeTitle + "\" title=\"Rename\">" +

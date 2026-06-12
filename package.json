@@ -1,7 +1,7 @@
 {
   "name": "side-router",
   "version": "4.0.0",
-  "description": "SideRouter — AI chat Chrome extension powered by OpenRouter",
+  "description": "SideRouter — AI chat browser extension powered by OpenRouter",
   "scripts": {
     "test": "jest --verbose",
     "test:unit": "jest tests/unit --verbose",

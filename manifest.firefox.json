@@ -12,7 +12,6 @@
   },
   "permissions": [
     "storage",
-    "sidePanel",
     "activeTab",
     "scripting",
     "tabs",
@@ -23,11 +22,16 @@
     "http://*/*",
     "https://*/*"
   ],
-  "side_panel": {
-    "default_path": "main.html"
+  "sidebar_action": {
+    "default_title": "SideRouter",
+    "default_panel": "main.html",
+    "default_icon": {
+      "16": "media/icon16.png",
+      "32": "media/icon32.png"
+    }
   },
   "background": {
-    "service_worker": "src/background.js"
+    "scripts": ["src/background.js"]
   },
   "content_scripts": [
     {
@@ -41,5 +45,11 @@
     "32": "media/icon32.png",
     "48": "media/icon48.png",
     "128": "media/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "siderouter@example.com",
+      "strict_min_version": "109.0"
+    }
   }
 }

@@ -22,6 +22,12 @@ function ContextModule(app) {
     });
   };
 
+  /** Truncate text to max length with ellipsis */
+  var _truncate = function (str, maxLen) {
+    if (!str) return "";
+    return str.length > maxLen ? str.slice(0, maxLen) + "..." : str;
+  };
+
   /** Open the context picker popup and load previews */
   var openContextPopup = function () {
     app._previousFocus = document.activeElement;
@@ -86,15 +92,17 @@ function ContextModule(app) {
         }
         var safeTitle = _esc(content.title);
         var safeUrl = _esc(content.url);
+        var displayTitle = _truncate(content.title, 50);
+        var displayUrl = _truncate(content.url, 50);
         var safeFormatted = _esc(formattedText) || "No text content available.";
         preview.innerHTML = [
           '<div class="context-page-info">',
           '<div class="context-page-header">',
           '<div class="context-page-title-row">',
           '<svg class="context-page-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>',
-          '<strong class="context-page-title">', safeTitle, '</strong>',
+          '<strong class="context-page-title">', displayTitle, '</strong>',
           '</div>',
-          '<span class="context-page-url">', safeUrl, '</span>',
+          '<span class="context-page-url">', displayUrl, '</span>',
           '</div>',
           '<div class="context-page-text">', safeFormatted, '</div>',
           '</div>'
@@ -114,7 +122,7 @@ function ContextModule(app) {
   var loadTabsList = async function () {
     var list = app.dom.contextTabsList;
     if (!list) return;
-    list.innerHTML = "<p class=\"context-empty\">Loading tabs\u2026</p>";
+    list.innerHTML = "<p class=\"context-empty\">Loading tabs…</p>";
     try {
       var tabs = await chrome.tabs.query({});
       app._contextSelectedTabs = new Set();
@@ -123,6 +131,8 @@ function ContextModule(app) {
         var url = _esc(tab.url || "");
         var favicon = tab.favIconUrl || "";
         var safeFavicon = _esc(favicon);
+        var displayTitle = _truncate(tab.title, 50);
+        var displayUrl = _truncate(tab.url || "", 50);
         return [
           '<label class="context-tab-item" data-tab-id="', tab.id, '">',
           '<input type="checkbox" data-tab-id="', tab.id, '" />',
@@ -130,8 +140,8 @@ function ContextModule(app) {
           favicon ? '<img src="' + safeFavicon + '" alt="" class="context-tab-favicon" onerror="this.style.display=\'none\'" />' : '<span class="context-tab-favicon context-tab-favicon-placeholder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>',
           '</span>',
           '<span class="context-tab-info">',
-          '<span class="context-tab-title" title="', title, '">', title, '</span>',
-          '<span class="context-tab-url" title="', url, '">', url, '</span>',
+          '<span class="context-tab-title" title="', title, '">', displayTitle, '</span>',
+          '<span class="context-tab-url" title="', url, '">', displayUrl, '</span>',
           '</span>',
           '</label>'
         ].join("");
@@ -161,7 +171,7 @@ function ContextModule(app) {
       var addBtn = document.createElement("button");
       addBtn.className = "btn btn-primary context-add-btn";
       addBtn.textContent = "Add Selected Tabs";
-      addBtn.addEventListener("click", function () { attachTabsContext(tabs); });
+      addBtn.addEventListener("click", async function () { await attachTabsContext(tabs); });
       list.appendChild(addBtn);
     } catch (e) {
       list.innerHTML = "<p class=\"context-empty\">Unable to load tabs.</p>";
@@ -179,7 +189,8 @@ function ContextModule(app) {
     if (isText) {
       var reader = new FileReader();
       reader.onload = function () {
-        var safeName = _esc(f.name);
+        var display_name = _truncate(f.name, 50);
+        var safeName = _esc(display_name);
         var previewText = String(reader.result || "").slice(0, 500);
         var safeText = _esc(previewText);
         var sizeKB = (f.size / 1024).toFixed(1);
@@ -204,7 +215,8 @@ function ContextModule(app) {
     } else {
       var reader2 = new FileReader();
       reader2.onload = function () {
-        var safeName = _esc(f.name);
+        var display_name = _truncate(f.name, 50);
+        var safeName = _esc(display_name);
         var sizeKB = (f.size / 1024).toFixed(1);
         preview.innerHTML = [
           '<div class="context-file-info">',
@@ -241,18 +253,19 @@ function ContextModule(app) {
   };
 
   /** Add selected tabs as context */
-  var attachTabsContext = function (allTabs) {
+  var attachTabsContext = async function (allTabs) {
     if (!app._contextSelectedTabs || !app._contextSelectedTabs.size) return;
     var ids = Array.from(app._contextSelectedTabs);
     for (var ti = 0; ti < ids.length; ti++) {
       var tab = allTabs.find(function (t) { return t.id.toString() === ids[ti]; });
       if (tab) {
-        app.contextItems.push({ type: "tab", title: tab.title, url: tab.url });
+        var content = await app.getTabContent(tab.id);
+        app.contextItems.push({ type: "tab", title: tab.title, url: tab.url, content: content });
       }
     }
     renderContextChips();
     closeContextPopup();
-    app.toast(app._contextSelectedTabs.size + " tab(s) added", "success");
+    app.toast(ids.length + " tab(s) added", "success");
   };
 
   /** Add the selected file as context */
@@ -285,11 +298,10 @@ function ContextModule(app) {
         var chip = document.createElement("div");
         chip.className = "context-chip";
         var label = "";
-        if (item.type === "page") label = "\uD83D\uDCC4 " + item.title;
-        else if (item.type === "tab") label = "\uD83D\uDD17 " + item.title;
-        else if (item.type === "file") label = "\uD83D\uDCCE " + item.name;
+        if (item.type === "page") label = "\uD83D\uDCC4 " + _truncate(item.title, 50);
+        else if (item.type === "tab") label = "\uD83D\uDD17 " + _truncate(item.title, 50);
+        else if (item.type === "file") label = "\uD83D\uDCCE " + _truncate(item.name, 50);
         var safeLabel = _esc(label);
-        // Use a button element for the X to ensure proper accessibility and styling
         var removeBtn = document.createElement("button");
         removeBtn.className = "context-chip-remove";
         removeBtn.setAttribute("aria-label", "Remove context");
@@ -364,7 +376,8 @@ function ContextModule(app) {
     renderContextChips: renderContextChips,
     requestPermission: requestPermission,
     denyPermission: denyPermission,
-    approvePermission: approvePermission
+    approvePermission: approvePermission,
+    _truncate: _truncate
   };
 }
 

@@ -1,6 +1,6 @@
 // background.js — SideRouter v4 (Complete)
 
-// Default settings stored in Chrome storage
+// Default settings stored in extension storage
 const defaults = {
   apiKey: null,
   selectedModel: null,
@@ -16,6 +16,7 @@ let settings = { ...defaults };              // In-memory settings cache
 let modelsCache = null;                      // Cached models to avoid repeated API calls
 let modelsCacheTime = 0;                     // Timestamp for cache expiration
 const CACHE_TTL = 30 * 60 * 1000;          // 30 minutes cache
+const ext = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
 
 /**
  * Load settings from Chrome storage into memory.
@@ -23,7 +24,7 @@ const CACHE_TTL = 30 * 60 * 1000;          // 30 minutes cache
  */
 async function loadSettings() {
   try {
-    const data = await chrome.storage.local.get(Object.keys(defaults));
+    const data = await ext.storage.local.get(Object.keys(defaults));
     for (const k of Object.keys(defaults)) {
       if (data[k] !== undefined) settings[k] = data[k];
     }
@@ -31,13 +32,13 @@ async function loadSettings() {
 }
 
 /**
- * Save settings to Chrome storage.
+ * Save settings to extension storage.
  * Merges updates into existing settings.
  */
 async function saveSettings(updates) {
   try {
     Object.assign(settings, updates);
-    await chrome.storage.local.set(updates);
+    await ext.storage.local.set(updates);
   } catch (e) { console.error('saveSettings:', e); }
 }
 
@@ -105,7 +106,7 @@ async function validateApiKey(key) {
 }
 
 // ── Message Handler ──────────────────────────────────────────
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     switch (msg.action) {
       case 'getSettings':
@@ -129,9 +130,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       case 'getPageHeadings': {
         try {
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
           if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
-          const results = await chrome.scripting.executeScript({
+          const results = await ext.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6')).map(h => ({
               level: parseInt(h.tagName[1]),
@@ -144,10 +145,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       case 'getActiveTabContent': {
         try {
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
-          const results = await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
+          let tabId = msg.tabId;
+          if (!tabId) {
+            const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
+            tabId = tab.id;
+          }
+          const results = await ext.scripting.executeScript({
+            target: { tabId: tabId },
             func: () => ({
               title: document.title,
               url: location.href,
@@ -171,14 +176,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           break;
         }
         try {
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
           if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
           const dangerous = /(document\.cookie|localStorage|sessionStorage|eval|Function|import\(|fetch|XMLHttpRequest|navigator\.sendBeacon|window\.location)/;
           if (dangerous.test(msg.code)) {
             sendResponse({ success: false, error: 'Blocked: potentially dangerous code' });
             break;
           }
-          const results = await chrome.scripting.executeScript({
+          const results = await ext.scripting.executeScript({
             target: { tabId: tab.id },
             func: (userCode) => {
               try { return { ok: true, result: (0, eval)('(function(){' + userCode + '})()') }; }
@@ -193,8 +198,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       case 'openFloatingWindow': {
         try {
-          const url = chrome.runtime.getURL('main.html?mode=floating');
-          const win = await chrome.windows.create({
+          const url = ext.runtime.getURL('main.html?mode=floating');
+          const win = await ext.windows.create({
             url, type: 'popup', width: 440, height: 720, focused: true,
           });
           sendResponse({ success: true, windowId: win.id });
@@ -209,28 +214,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 // ── Side Panel Open ──────────────────────────────────────────
-// Cross-browser: Firefox uses browser.sidebarAction, Chrome uses chrome.sidePanel
-const sidePanel = (typeof browser !== 'undefined' && browser.sidebarAction)
+const chromePanel = typeof chrome !== 'undefined' ? chrome.sidePanel : null;
+const panelApi = (typeof browser !== 'undefined' && browser.sidebarAction)
   ? browser.sidebarAction
-  : chrome.sidePanel;
+  : chromePanel;
 
-chrome.action.onClicked.addListener(async (tab) => {
+async function openPanel(tab) {
+  if (!panelApi?.open) return;
+  if (panelApi === chromePanel) {
+    await panelApi.open({ windowId: tab.windowId });
+  } else {
+    await panelApi.open();
+  }
+}
+
+async function configurePanel() {
+  if (panelApi?.setPanel) {
+    await panelApi.setPanel({ panel: 'main.html' });
+  } else if (panelApi?.setOptions) {
+    await panelApi.setOptions({ path: 'main.html', enabled: true });
+  }
+}
+
+ext.action.onClicked.addListener(async (tab) => {
   try {
-    if (sidePanel.open) {
-      await sidePanel.open({ windowId: tab.windowId });
-    }
+    await openPanel(tab);
   } catch (e) { console.error('open side panel:', e); }
 });
 
-chrome.runtime.onInstalled.addListener(async () => {
+ext.runtime.onInstalled.addListener(async () => {
   await loadSettings();
-  if (sidePanel.setOptions) {
-    sidePanel.setOptions({ path: 'main.html', enabled: true }).catch(() => {});
-  }
+  try {
+    await configurePanel();
+  } catch (e) { console.error('configure side panel:', e); }
   fetchModels();
 });
 
-chrome.runtime.onStartup.addListener(async () => {
+ext.runtime.onStartup.addListener(async () => {
   await loadSettings();
   fetchModels();
 });

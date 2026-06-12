@@ -56,7 +56,7 @@
 
       <!-- ── Messages ── -->
       <div id="main-content" class="messages" role="log" aria-label="Chat messages" aria-live="polite">
-        <div class="welcome" id="welcome-screen" role="region" aria-label="Welcome">
+        <div class="welcome hidden" id="welcome-screen" role="region" aria-label="Welcome">
           <div class="welcome-icon" aria-hidden="true">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
               <rect x="2" y="2" width="20" height="20" rx="6" fill="#6366f1" />
@@ -171,6 +171,14 @@
               <span class="toggle-label">Auto-approve permissions</span>
             </label>
             <p class="hint">Allow AI to interact with web pages, modify content and use the terminal without asking for permission.</p>
+          </div>
+          <div class="form-group">
+            <label class="toggle">
+              <input type="checkbox" id="caveman-toggle" checked />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span class="toggle-label">Caveman compression</span>
+            </label>
+            <p class="hint">Send terse natural-language context and request concise AI replies to reduce token usage.</p>
           </div>
           <div class="form-group">
             <label for="ai-name">AI Agent Name</label>
@@ -462,6 +470,7 @@
     <script src="./src/lib/dom.js"></script>
     <script src="./src/lib/settings.js"></script>
     <script src="./src/lib/ui.js"></script>
+    <script src="./src/lib/caveman.js"></script>
     <script src="./src/lib/chat.js"></script>
     <script src="./src/lib/history.js"></script>
     <script src="./src/lib/context.js"></script>

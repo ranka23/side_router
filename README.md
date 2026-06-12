@@ -1,18 +1,18 @@
-# SideRouter - Chrome Extension
+# SideRouter - Browser Extension
 
-AI chat powered by OpenRouter.ai in your browser's side panel. Chat with free and paid models, execute JavaScript on web pages with permission prompts, and manage conversations with a clean, minimal interface.
+AI chat powered by OpenRouter.ai in your browser sidebar. Chat with free and paid models, execute JavaScript on web pages with permission prompts, and manage conversations with a clean, minimal interface.
 
 ## Features
 
-- **Side Panel Integration**: Click the extension icon to open the chat sidebar instantly
+- **Sidebar Integration**: Click the extension icon to open the chat sidebar instantly
 - **Floating Window**: Open chats in a separate popup window for multitask workflows  
 - **Model Selection**: Browse all OpenRouter models with automatic free/paid grouping
 - **Task Queue**: Queue multiple messages while one is processing; cancel with stop button
 - **Permission System**: Approve or deny AI requests to execute JavaScript on pages
 - **File Attachments**: Upload images, audio, video, and text files via the context popup
 - **Page Context**: Include "this page" content for contextual AI assistance
-- **Tab Context**: Add context from any open Chrome tab
-- **History Persistence**: Optionally save chat history to Chrome storage
+- **Tab Context**: Add context from any open browser tab
+- **History Persistence**: Optionally save chat history to extension storage
 - **Chat History Popup**: View and restore past conversations from the history button
 - **Dark Mode**: Auto-detect or manually toggle dark theme
 - **Context Tracking**: See token usage vs model context limit in real-time
@@ -24,18 +24,20 @@ AI chat powered by OpenRouter.ai in your browser's side panel. Chat with free an
 ## Installation
 
 1. Clone or download this repository
-2. Open Chrome → `chrome://extensions/`
-3. Enable "Developer mode" (top-right toggle)
-4. Click "Load unpacked" and select the extension folder
+2. Open Firefox → `about:debugging`
+3. Select "This Firefox"
+4. Click "Load Temporary Add-on" and select this extension's Firefox `manifest.firefox.json`
 5. Get an OpenRouter API key at [openrouter.ai/keys](https://openrouter.ai/keys)
 6. Click the extension icon → paste your API key in Settings
+
+For Chrome, load the default `manifest.json` from `chrome://extensions/` with Developer mode enabled.
 
 ## Usage
 
 ### Basic Chat
-1. Click the SideRouter icon in Chrome's toolbar
+1. Click the SideRouter icon in the browser toolbar
 2. Type a message and press Enter or click Send
-3. The side panel opens with AI responses
+3. The sidebar opens with AI responses
 
 ### Context Features
 1. Click the @ icon in the input area to open the context picker
@@ -67,7 +69,7 @@ Click the history icon (three stacked panels) in the header to view past convers
 main.html              ← UI layout (messages, input, settings, donate modals)
 src/
   script.js            ← SideRouter class (frontend controller)
-  background.js        ← Service worker (model API, tab execution)
+  background.js        ← Persistent background script (model API, tab execution)
   content.js           ← Content script (page context extraction)
   styles.css           ← All styling with CSS variables
   lib/
@@ -81,7 +83,8 @@ src/
     history.js         ← Chat history management
     context.js         ← Context picker, permission system
 media/                 ← Extension icons
-manifest.json          ← Extension configuration (MV3)
+manifest.json          ← Chrome extension configuration (MV3)
+manifest.firefox.json  ← Firefox extension configuration (MV3 sidebar)
 ```
 
 ## Key Components
@@ -106,11 +109,23 @@ Main controller handling:
 8. Saves history if enabled
 
 ### Context Compression
+
 Automatically compresses context when the total text exceeds the model's context window:
 - Strips HTML tags and removes boilerplate (cookie notices, navigation, etc.)
 - Removes common UI text (subscribe, sign in, etc.)
 - Falls back to intelligent sentence-level truncation
 - Leaves 20% of context window for the AI's response
+
+### Caveman Compression
+
+SideRouter uses caveman-style compression to reduce token usage by ~60-75%:
+
+- **Assistant replies** are instructed to be terse and skip filler (no pleasantries, hedging, or verbose explanations)
+- **Natural-language context** (page, tab, and text-file context) is compressed before sending
+- **Assistant chat history** is compressed before sending (user messages remain exact to preserve intent)
+- **Code blocks, URLs, file paths, commands, JSON-like blocks, and binary media are preserved**
+- **Images, audio, video, and PDF binary payloads are never caveman-compressed**
+- Can be toggled in Settings → "Caveman compression" (enabled by default)
 
 ### Security
 - API calls use fetch with Authorization header
@@ -132,6 +147,7 @@ Automatically compresses context when the total text exceeds the model's context
 | Auto-approve | Skip permission prompts for JS execution |
 | AI Agent Name | Custom display name in chat bubbles |
 | Default AI Model | Model for new chats (optional) |
+| Caveman Compression | Reduce token usage by compressing context and requesting terse AI replies |
 
 ## Development
 
@@ -149,13 +165,14 @@ npm run test:integration
 npm run test:e2e
 
 # Reload extension
-# Go to chrome://extensions → click "Reload" on SideRouter card
+# Firefox: open about:debugging → This Firefox → Load Temporary Add-on → manifest.firefox.json
+# Chrome: open chrome://extensions → enable Developer mode → Reload the SideRouter card loaded from manifest.json
 ```
 
 ## Permissions
 
 - `storage` — Save settings and history
-- `sidePanel` — Side panel integration
+- `sidebar_action` / `sidePanel` — Sidebar or side panel integration
 - `activeTab` — Inject scripts into current tab
 - `scripting` — Execute JavaScript on pages
 - `tabs` — Query active tab for context

@@ -10,7 +10,8 @@ class SideRouter {
     this.settings = {
       apiKey: null, selectedModel: null, isDarkTheme: null,
       saveHistory: true, autoApprove: false, aiName: "ASSISTANT",
-      rememberedPermissions: [], defaultModel: null, zoomLevel: 100
+      rememberedPermissions: [], defaultModel: null, zoomLevel: 100,
+      cavemanCompression: true
     };
     /** @type {Array} Current chat messages */
     this.messages = [];
@@ -160,6 +161,7 @@ class SideRouter {
     this.dom.saveHistory.onchange = function () { self.settings.saveHistory = self.dom.saveHistory.checked; self.save(); self.loadChatHistories(); };
     this.dom.autoApprove.onchange = function () { self.settings.autoApprove = self.dom.autoApprove.checked; self.save(); };
     this.dom.aiName.onchange = function () { self.settings.aiName = self.dom.aiName.value.trim() || "ASSISTANT"; self.save(); };
+    this.dom.caveman.onchange = function () { self.settings.cavemanCompression = self.dom.caveman.checked; self.save(); };
 
     // ── Zoom Control Bindings ──────────────────────────────────
     if (this.dom.zoomIn) {
@@ -353,15 +355,15 @@ class SideRouter {
     }
   }
 
-  /** Get tab content from the active Chrome tab */
-  getTabContent() {
-    return this._getTabContent();
+  /** Get tab content from the active Chrome tab or specific tabId */
+  getTabContent(tabId) {
+    return this._getTabContent(tabId);
   }
 
   /** Fetch the active tab's page content via the background service worker */
-  async _getTabContent() {
+  async _getTabContent(tabId) {
     try {
-      var r = await bg("getActiveTabContent");
+      var r = await bg("getActiveTabContent", tabId ? { tabId: tabId } : {});
       if (r && r.success) { this.tabContent = r.content; return this.tabContent; }
     } catch (e) {}
     return null;

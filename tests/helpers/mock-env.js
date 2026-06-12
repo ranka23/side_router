@@ -228,11 +228,25 @@ function buildMockEnv() {
     action: { onClicked: { addListener: () => {} } },
   };
 
+  const browser = {
+    runtime: chrome.runtime,
+    storage: chrome.storage,
+    tabs: chrome.tabs,
+    scripting: chrome.scripting,
+    windows: chrome.windows,
+    action: chrome.action,
+    sidebarAction: {
+      open: () => Promise.resolve(),
+      setPanel: () => Promise.resolve(),
+    },
+  };
+
   global.location = { search: '', href: '' };
   global.document = document;
   global.window = win;
   global.navigator = navigator;
   global.chrome = chrome;
+  global.browser = browser;
   global.console = { log: () => {}, error: () => {}, warn: () => {}, info: () => {} };
   global.confirm = () => true;
   global.requestAnimationFrame = (fn) => fn();
@@ -266,6 +280,7 @@ function buildMockEnv() {
     'src/lib/dom.js',
     'src/lib/settings.js',
     'src/lib/ui.js',
+    'src/lib/caveman.js',
     'src/lib/chat.js',
     'src/lib/history.js',
     'src/lib/context.js',
@@ -287,7 +302,7 @@ function buildMockEnv() {
   var SideRouter = new Function(combined)();
   global.SideRouter = SideRouter;
 
-  return { document, window: win, navigator, chrome, SideRouter, elements };
+  return { document, window: win, navigator, chrome, browser, SideRouter, elements };
 }
 
 module.exports = { makeEl, buildMockEnv };

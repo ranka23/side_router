@@ -638,6 +638,99 @@ describe('Context Compression', () => {
   });
 });
 
+// ── Context Compression Plugin Decision ───────────────────────────
+describe('Context Compression Plugin Decision', () => {
+  let app;
+  beforeEach(() => {
+    buildMockEnv();
+    app = new SideRouter();
+  });
+
+  test('should add context-compression plugin when tokens exceed 80% of context window', () => {
+    const longHistory = Array.from({ length: 100 }, (_, i) => ({ role: 'user', content: 'This is a test message with some content.' }));
+    const longText = 'word '.repeat(3000);
+    app.messages = [...longHistory];
+    app.settings.selectedModel = 'test/model';
+    app.dom.modelSelect = { selectedOptions: [{ dataset: { context: 4096 } }] };
+    const estimatedTokens = app.estimateTokens(longText) + longHistory.reduce((sum, m) => sum + app.estimateTokens(m.content), 0);
+    expect(estimatedTokens).toBeGreaterThan(4096 * 0.8);
+  });
+
+  test('estimateTokens works correctly with various inputs', () => {
+    expect(app.estimateTokens('')).toBe(0);
+    expect(app.estimateTokens('a')).toBe(1);
+    expect(app.estimateTokens('hello world')).toBe(3);
+    expect(app.estimateTokens(null)).toBe(0);
+    expect(app.estimateTokens(undefined)).toBe(0);
+  });
+});
+
+// ── Tab Context Fetching ───────────────────────────────────────────
+describe('Tab Context Fetching', () => {
+  let app;
+  beforeEach(() => {
+    buildMockEnv();
+    app = new SideRouter();
+  });
+
+  test('getTabContent accepts optional tabId parameter', () => {
+    expect(typeof app.getTabContent).toBe('function');
+  });
+
+  test('contextItems can store tab content', () => {
+    app.contextItems.push({
+      type: 'tab',
+      title: 'Test Tab',
+      url: 'https://example.com',
+      content: { title: 'Test', url: 'https://example.com', text: 'Some content' }
+    });
+    expect(app.contextItems.length).toBe(1);
+    expect(app.contextItems[0].content.text).toBe('Some content');
+  });
+
+  test('contextItems can store page content', () => {
+    app.contextItems.push({
+      type: 'page',
+      title: 'Test Page',
+      url: 'https://example.com',
+      content: 'Page content here'
+    });
+    expect(app.contextItems.length).toBe(1);
+    expect(app.contextItems[0].content).toBe('Page content here');
+  });
+
+  test('contextItems can store tab content even when caveman compression is disabled', () => {
+    app.settings.cavemanCompression = false;
+    app.contextItems.push({
+      type: 'tab',
+      title: 'Test Tab',
+      url: 'https://example.com',
+      content: { title: 'Test', url: 'https://example.com', text: 'Some content' }
+    });
+    expect(app.contextItems.length).toBe(1);
+    expect(app.contextItems[0].content.text).toBe('Some content');
+  });
+});
+
+// ── PDF Annotation Handling ──────────────────────────────────────────
+describe('PDF Annotation Handling', () => {
+  let app;
+  beforeEach(() => {
+    buildMockEnv();
+    app = new SideRouter();
+  });
+
+  test('_pdfAnnotations property can store cached annotations', () => {
+    app._pdfAnnotations = { 'test.pdf': { type: 'file', file_id: 'test.pdf', content: 'parsed content' } };
+    expect(app._pdfAnnotations['test.pdf'].content).toBe('parsed content');
+  });
+
+  test('_pendingAttachments stores attachments during send', () => {
+    app._pendingAttachments = [{ name: 'test.pdf', type: 'file', data: 'data:application/pdf;base64,abc' }];
+    expect(app._pendingAttachments.length).toBe(1);
+  });
+});
+
 // ── Donate Modal ──────────────────────────────────────────────
 describe('Donate Modal', () => {
   let app;

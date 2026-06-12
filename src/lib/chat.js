@@ -10,6 +10,11 @@
  * @returns {Object} Public API methods mixed into the app
  */
 function ChatModule(app) {
+  var _truncate = function (str, maxLen) {
+    if (!str) return "";
+    return str.length > maxLen ? str.slice(0, maxLen) + "..." : str;
+  };
+
   /** Get audio format from file name and MIME type */
   var getAudioFormat = function (filename, mime) {
     var ext = (filename.split(".").pop() || "").toLowerCase();
@@ -42,6 +47,10 @@ function ChatModule(app) {
       .map(function (m) {
         var msg = { role: m.role, content: m.content };
         if (m.annotations) msg.annotations = m.annotations;
+
+        if (app.settings.cavemanCompression !== false && m.role === "assistant" && window.CavemanModule) {
+          msg.content = window.CavemanModule.compressContextText(msg.content, 4000);
+        }
         return msg;
       });
   };
@@ -137,7 +146,8 @@ function ChatModule(app) {
    */
   var queueSend = function (text, attachments) {
     var timestamp = Date.now();
-    app.taskQueue.push({ text: text, attachments: attachments, timestamp: timestamp });
+    var contextItems = app.contextItems.slice();
+    app.taskQueue.push({ text: text, attachments: attachments, timestamp: timestamp, contextItems: contextItems });
     var queueEl = document.createElement("div");
     queueEl.className = "msg-row queued";
     queueEl.style.cssText = "align-self:flex-end;align-items:flex-end;max-width:85%;";
@@ -151,6 +161,8 @@ function ChatModule(app) {
     app.dom.input.value = "";
     app.resize();
     app.clearAttachments();
+    app.contextItems = [];
+    app.dom.contextChips.innerHTML = "";
     if (!app.isRunning) { processQueue(); }
   };
 
@@ -170,6 +182,7 @@ function ChatModule(app) {
     var text = item.text;
     var attachments = item.attachments;
     var timestamp = item.timestamp;
+    var contextItems = item.contextItems || [];
     var queueEl = app.dom.messages.querySelector("[data-queue-timestamp=\"" + timestamp + "\"]");
     if (queueEl) {
       queueEl.classList.remove("queued");
@@ -185,7 +198,7 @@ function ChatModule(app) {
       if (tag) tag.remove();
       queueEl.style.cssText = "";
     }
-    await handleSend(text, attachments, timestamp);
+    await handleSend(text, attachments, timestamp, contextItems);
     processQueue();
   };
 
@@ -270,6 +283,7 @@ function ChatModule(app) {
     var attLabel = attachments.length ? attachments.map(function (a) { return getLabel(a.type, a.mime); }).join(" ") + " (" + attachments.length + ")" : "";
     var ctxLabel = app.contextItems.length ? " [" + app.contextItems.length + " context]" : "";
     var bubbleText = [text, attLabel + ctxLabel].filter(Boolean).join(" ");
+    var contextItems = app.contextItems.slice();
     if (attachments.length) {
       app._pendingAttachments = attachments.slice();
     }
@@ -280,19 +294,20 @@ function ChatModule(app) {
     app.clearAttachments();
     app.contextItems = [];
     app.dom.contextChips.innerHTML = "";
-    await handleSend(text, attachments, null);
+    await handleSend(text, attachments, null, contextItems);
   };
 
-  /**
-   * Core send handler. Constructs the API request body, sends to OpenRouter,
-   * handles the response (including thinking/reasoning), and saves history.
-   * Uses context compression to fit within the model's context window.
-   * @param {string} text - The user message text
-   * @param {Array} initialAttachments - File attachments
-   * @param {number|null} queueTimestamp - Timestamp from queue (or null)
-   */
-  var handleSend = async function (text, initialAttachments, queueTimestamp) {
+/**
+    * Core send handler. Constructs the API request body, sends to OpenRouter,
+    * handles the response (including thinking/reasoning), and saves history.
+    * Uses context compression to fit within the model's context window.
+    * @param {string} text - The user message text
+    * @param {Array} initialAttachments - File attachments
+    * @param {number|null} queueTimestamp - Timestamp from queue (or null)
+    */
+  var handleSend = async function (text, initialAttachments, queueTimestamp, contextItems) {
     if (queueTimestamp === undefined || queueTimestamp === null) queueTimestamp = null;
+    if (!contextItems) contextItems = app.contextItems;
     app.setRunning(true);
     app.updateSendIcon();
     var fullText = text;
@@ -307,23 +322,87 @@ function ChatModule(app) {
       }
     }
 
-    // ── Context Items Integration ──────────────────────────────
-    if (app.contextItems.length) {
-      for (var ci = 0; ci < app.contextItems.length; ci++) {
-        var ctx = app.contextItems[ci];
+    // ── Build Developer Messages for Context Items ───────────────
+    var developerMessages = [];
+    var contextFileParts = [];
+    if (contextItems.length) {
+      var caveman = window.CavemanModule;
+      var compressContextText = caveman && app.settings.cavemanCompression !== false ? caveman.compressContextText : function (t) { return t; };
+      var maxContextChars = app.settings.cavemanCompression !== false ? 4000 : 8000;
+
+      for (var ci = 0; ci < contextItems.length; ci++) {
+        var ctx = contextItems[ci];
         if (ctx.type === "page") {
-          fullText += "\n\n[Page Context: " + ctx.title + "]\nURL: " + ctx.url + "\nContent: " + (ctx.content ? ctx.content.slice(0, 4000) : "");
+          var pageContent = ctx.content || "";
+          var pageContextContent = "Page Context: " + ctx.title + "\nURL: " + ctx.url;
+          if (pageContent) {
+            pageContextContent += "\nContent: " + compressContextText(pageContent.slice(0, maxContextChars), maxContextChars);
+          } else {
+            pageContextContent += "\nContent: [Page content was not available. The page may be on a restricted URL such as chrome://, about:blank, or another extension page.]";
+          }
+          developerMessages.push({
+            role: "developer",
+            content: pageContextContent
+          });
         } else if (ctx.type === "tab") {
-          fullText += "\n\n[Tab Context: " + ctx.title + "]\nURL: " + ctx.url;
-        } else if (ctx.type === "file") {
-          fullText += "\n\n[File: " + ctx.name + "]\n" + (ctx.text || "[binary file]");
-        }
+          var tabContent = ctx.content || {};
+          var tabText = tabContent.text || "";
+          var tabContextContent = "Tab Context: " + ctx.title + "\nURL: " + ctx.url + "\nTitle: " + (tabContent.title || ctx.title || "");
+          if (tabText) {
+            tabContextContent += "\nContent: " + compressContextText(tabText.slice(0, maxContextChars), maxContextChars);
+          } else {
+            tabContextContent += "\nContent: [Tab content was not available. The tab may be on a restricted page such as chrome://, a new tab page, or another extension page that the browser blocks from reading.]";
+          }
+          developerMessages.push({
+            role: "developer",
+            content: tabContextContent
+          });
+} else if (ctx.type === "file") {
+         // Add file context as developer message with compressed text
+         if (ctx.text) {
+           developerMessages.push({
+             role: "developer",
+             content: "File Context: " + ctx.name + "\nContent: " + compressContextText(ctx.text.slice(0, maxContextChars), maxContextChars)
+           });
+         }
+         
+         // Add ALL files as file attachments via the completion API
+         // Use type-specific formats matching the OpenRouter/OpenAI API spec
+         if (ctx.data && ctx.mime) {
+           var fileDataUrl;
+           if (ctx.text) {
+             // Text file: convert plain text to proper base64 data URL
+             var base64Text = btoa(unescape(encodeURIComponent(ctx.text)));
+             fileDataUrl = "data:" + ctx.mime + ";base64," + base64Text;
+           } else {
+             // Binary file: data is already a data URL from readAsDataURL
+             fileDataUrl = ctx.data.startsWith("data:") ? ctx.data : "data:" + ctx.mime + ";base64," + ctx.data;
+           }
+           
+           // Use the correct content part type based on file MIME type
+           if (ctx.mime.startsWith("image/")) {
+             contextFileParts.push({ type: "image_url", image_url: { url: fileDataUrl } });
+           } else if (ctx.mime.startsWith("audio/")) {
+             var audioBase64 = fileDataUrl.split(",")[1] || "";
+             var audioFmt = getAudioFormat(ctx.name, ctx.mime);
+             contextFileParts.push({ type: "input_audio", input_audio: { data: audioBase64, format: audioFmt } });
+           } else if (ctx.mime.startsWith("video/")) {
+             contextFileParts.push({ type: "video_url", video_url: { url: fileDataUrl } });
+           } else if (ctx.mime === "application/pdf") {
+             contextFileParts.push({ type: "file", file: { filename: ctx.name, file_data: fileDataUrl } });
+           } else {
+             contextFileParts.push({ type: "file", file: { filename: ctx.name, file_data: fileDataUrl } });
+           }
+         }
+       }
       }
     }
 
-    // ── Safe Content of Request ────────────────────────────────
+    // ── Build User Message Content ───────────────────────────────
     var contentParts = [];
     if (fullText) contentParts.push({ type: "text", text: fullText });
+
+    // ── Build Plugins and Attachments ─────────────────────────────
     var plugins = [];
     for (var ai = 0; ai < initialAttachments.length; ai++) {
       var a = initialAttachments[ai];
@@ -339,29 +418,52 @@ function ChatModule(app) {
         contentParts.push({ type: "video_url", video_url: { url: dataUrl2 } });
       } else if (a.type === "file" && a.mime === "application/pdf") {
         var dataUrl3 = a.data.startsWith("data:") ? a.data : "data:application/pdf;base64," + a.data;
-        contentParts.push({ type: "file", file: { filename: a.name, file_data: dataUrl3 } });
-        plugins.push({ id: "file-parser", pdf: { engine: "cloudflare-ai" } });
-      } else {
-        var fileText;
-        if (a.text) {
-          fileText = a.text;
+        var filePart = { type: "file", file: { filename: a.name, file_data: dataUrl3 } };
+        if (app._pdfAnnotations && app._pdfAnnotations[a.name]) {
+          filePart.file.annotations = app._pdfAnnotations[a.name].content;
+          filePart.file.annotation_type = "pdf";
         } else {
-          var raw = a.data.startsWith("data:") ? atob(a.data.split(",")[1] || "") : a.data;
-          fileText = raw.length > 2000 ? raw.slice(0, 2000) + "\n[truncated]" : raw;
+          plugins.push({ id: "file-parser", pdf: { engine: "cloudflare-ai" } });
         }
-        contentParts.push({ type: "text", text: "\n\n[File: " + a.name + "]\n" + fileText });
+        contentParts.push(filePart);
+      } else {
+        var dataUrl = a.data.startsWith("data:") ? a.data : "data:" + (a.mime || "application/octet-stream") + ";base64," + a.data;
+        contentParts.push({ type: "file", file: { filename: a.name, file_data: dataUrl } });
       }
     }
 
-    // ── Compress Context Before Sending ────────────────────────
-    var currentModel = app.settings.selectedModel;
+    // ── Merge Context File Attachments ────────────────────────────
+    for (var cfi = 0; cfi < contextFileParts.length; cfi++) {
+      contentParts.push(contextFileParts[cfi]);
+    }
+
+    // ── Calculate Token Estimate and Compress ─────────────────────
     var contextWindow = 4096;
     var modelSelect = app.dom.modelSelect;
     if (modelSelect && modelSelect.selectedOptions && modelSelect.selectedOptions[0]) {
       contextWindow = parseInt(modelSelect.selectedOptions[0].dataset.context) || 4096;
     }
+
+    // Calculate estimated tokens for context compression decision
+    var estimatedTokens = estimateTokens(fullText || "");
+    for (var di = 0; di < developerMessages.length; di++) {
+      estimatedTokens += estimateTokens(developerMessages[di].content || "");
+    }
+    for (var ai2 = 0; ai2 < initialAttachments.length; ai2++) {
+      var a2 = initialAttachments[ai2];
+      if (a2.text) estimatedTokens += estimateTokens(a2.text);
+    }
+    for (var mi = 0; mi < app.messages.length; mi++) {
+      estimatedTokens += estimateTokens(app.messages[mi].content || "");
+    }
+
+    // Add context-compression plugin when tokens exceed 80% of context window
+    if (estimatedTokens > contextWindow * 0.8) {
+      plugins.push({ id: "context-compression", engine: "middle-out" });
+    }
+
     // Compress the context text to fit within the model's context window
-    if (contentParts.length > 0 && contentParts[0].type === "text") {
+    if (contentParts.length > 0 && contentParts[0].type === "text" && app.settings.cavemanCompression !== false) {
       contentParts[0].text = compressFullContext(contentParts[0].text, contextWindow);
     }
 
@@ -371,13 +473,24 @@ function ChatModule(app) {
 
     // ── Send API Request ───────────────────────────────────────
     try {
+      var messages = getHistoryForApi();
+      if (app.settings.cavemanCompression !== false && window.CavemanModule) {
+        messages = [
+          { role: "system", content: window.CavemanModule.CAVEMAN_SYSTEM_PROMPT },
+          ...messages
+        ];
+      }
       var body = {
         model: app.settings.selectedModel,
-        messages: getHistoryForApi().concat([{
+        messages: [...messages, ...developerMessages, {
           role: "user",
           content: contentParts.length === 1 && contentParts[0].type === "text" ? contentParts[0].text : contentParts
-        }])
+        }]
       };
+      // Add transforms for OpenRouter middle-out compression
+      if (estimatedTokens > contextWindow * 0.8) {
+        body.transforms = ["middle-out"];
+      }
       if (plugins.length) body.plugins = plugins;
       app.abortController = new AbortController();
       var res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -420,7 +533,18 @@ function ChatModule(app) {
       // ── Parse Success Response ───────────────────────────────
       var reply = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "No response.";
       var annotations = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.annotations) || null;
-      if (annotations) { app._pendingAnnotations = annotations; }
+      if (annotations && app._pendingAttachments) {
+        var cachedAnnotations = {};
+        for (var pi = 0; pi < annotations.length; pi++) {
+          var ann = annotations[pi];
+          if (ann.type === "file" && ann.file_id) {
+            cachedAnnotations[ann.file_id] = ann;
+          }
+        }
+        if (Object.keys(cachedAnnotations).length > 0) {
+          app._pdfAnnotations = cachedAnnotations;
+        }
+      }
 
       // ── Permission Handling ──────────────────────────────────
       if (!app.settings.autoApprove) {
@@ -560,7 +684,7 @@ function ChatModule(app) {
           chip.appendChild(icon);
         }
         var nm = document.createElement("span");
-        nm.textContent = a2.name;
+        nm.textContent = _truncate(a2.name, 50);
         nm.title = a2.name;
         chip.appendChild(nm);
         var rm = document.createElement("span");
@@ -599,6 +723,7 @@ function ChatModule(app) {
     compressContext: compressContext,
     compressFullContext: compressFullContext,
     estimateTokens: estimateTokens,
+    _truncate: _truncate,
   };
 }
 

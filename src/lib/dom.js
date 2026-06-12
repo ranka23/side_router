@@ -23,6 +23,7 @@ function cacheDom(app) {
     theme: $("theme-toggle"),
     saveHistory: $("save-history-toggle"),
     autoApprove: $("auto-approve-toggle"),
+    caveman: $("caveman-toggle"),
     aiName: $("ai-name"),
     proNotice: $("pro-notice"),
     toast: $("toast-container"),

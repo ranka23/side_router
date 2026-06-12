@@ -20,6 +20,7 @@ function SettingsModule(app) {
     rememberedPermissions: [],
     defaultModel: null,
     zoomLevel: 100,
+    cavemanCompression: true,
   };
 
   /** Minimum and maximum zoom percentages */
@@ -301,6 +302,7 @@ function SettingsModule(app) {
     app.dom.theme.checked = !!app.settings.isDarkTheme;
     app.dom.saveHistory.checked = app.settings.saveHistory !== false;
     app.dom.autoApprove.checked = !!app.settings.autoApprove;
+    app.dom.caveman.checked = app.settings.cavemanCompression !== false;
     app.dom.aiName.value = app.settings.aiName || "ASSISTANT";
     app.dom.keyStatus.textContent = "";
     app.dom.keyStatus.className = "key-status";
