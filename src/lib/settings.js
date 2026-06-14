@@ -20,7 +20,7 @@ function SettingsModule(app) {
     rememberedPermissions: [],
     defaultModel: null,
     zoomLevel: 100,
-    cavemanCompression: true,
+    cavemanCompression: false,
   };
 
   /** Minimum and maximum zoom percentages */

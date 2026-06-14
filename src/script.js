@@ -11,7 +11,7 @@ class SideRouter {
       apiKey: null, selectedModel: null, isDarkTheme: null,
       saveHistory: true, autoApprove: false, aiName: "ASSISTANT",
       rememberedPermissions: [], defaultModel: null, zoomLevel: 100,
-      cavemanCompression: true
+      cavemanCompression: false
     };
     /** @type {Array} Current chat messages */
     this.messages = [];
