@@ -356,13 +356,11 @@ function UIModule(app) {
       "</svg>" +
       "<span class=\"copy-feedback hidden\">&#10003;</span>" +
       "</button>";
-    if (!isUser) {
-      actionsHtml += "<button class=\"msg-btn-icon\" data-action=\"download\" title=\"Download\">" +
-        "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
-        "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
-        "</svg>" +
-        "</button>";
-    }
+    actionsHtml += "<button class=\"msg-btn-icon\" data-action=\"download\" title=\"Download\">" +
+      "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+      "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+      "</svg>" +
+      "</button>";
     actionsHtml += "</div>";
     var mediaHtml = mediaUrls.length ? buildMediaHtml(mediaUrls) : "";
     // Render file attachment cards for user messages
@@ -413,6 +411,12 @@ function UIModule(app) {
           toast("Copied!", "success");
         });
       }
+    } else {
+      // For assistant messages, append actions to the row BEFORE attaching event listeners
+      var actionsContainer = document.createElement("div");
+      actionsContainer.innerHTML = actionsHtml;
+      var firstAction = actionsContainer.firstChild;
+      if (firstAction) row.appendChild(firstAction);
     }
     var copyBtn = row.querySelector('[data-action="copy"]');
     if (copyBtn) {
@@ -447,19 +451,24 @@ function UIModule(app) {
         el.title = "Click to copy";
       }
     });
-    var downloadBtn = row.querySelector('[data-action="download"]');
-    if (downloadBtn) {
-      downloadBtn.addEventListener("click", function () {
-        var ext = text.startsWith("```") ? "md" : "txt";
-        var blob = new Blob([text], { type: "text/plain" });
-        var a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "response-" + Date.now() + "." + ext;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        toast("Downloaded!", "success");
-      });
+    var downloadBtns = [row.querySelector('[data-action="download"]')];
+    if (isUser && userActionsRow) {
+      downloadBtns.push(userActionsRow.querySelector('[data-action="download"]'));
     }
+    downloadBtns.forEach(function (downloadBtn) {
+      if (downloadBtn) {
+        downloadBtn.addEventListener("click", function () {
+          var ext = text.startsWith("```") ? "md" : "txt";
+          var blob = new Blob([text], { type: "text/plain" });
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "response-" + Date.now() + "." + ext;
+          a.click();
+          URL.revokeObjectURL(a.href);
+          toast("Downloaded!", "success");
+        });
+      }
+    });
     row.querySelectorAll('[data-action="download-media"]').forEach(function (btn) {
       if (btn) {
         btn.addEventListener("click", function () {
@@ -530,14 +539,8 @@ function UIModule(app) {
     // Append row to the DOM
     app.dom.messages.appendChild(row);
     // For user messages, append copy/download actions OUTSIDE the row (below the bubble)
-    // For assistant messages, append actions inside the row
     if (isUser && userActionsRow) {
       app.dom.messages.appendChild(userActionsRow);
-    } else if (!isUser) {
-      var actionsContainer = document.createElement("div");
-      actionsContainer.innerHTML = actionsHtml;
-      var firstAction = actionsContainer.firstChild;
-      if (firstAction) row.appendChild(firstAction);
     }
     return row;
   };

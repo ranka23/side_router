@@ -657,6 +657,7 @@ function SettingsModule(app) {
     app.dom.modelSelect.disabled = true;
     app.dom.usageBadge.classList.add("hidden");
     if (app.dom.welcome) app.dom.welcome.classList.remove("hidden");
+    updateApiDependentState();
   };
 
   /** Lock or unlock the UI based on whether an API key is present */
@@ -664,21 +665,26 @@ function SettingsModule(app) {
     if (locked) {
       app.dom.input.disabled = true;
       app.dom.sendBtn.disabled = true;
-      app.dom.modelSelect.disabled = true;
       app.dom.usageBadge.classList.add("hidden");
       if (app.dom.welcome) app.dom.welcome.classList.remove("hidden");
     } else {
       if (app.dom.welcome) app.dom.welcome.classList.add("hidden");
       app.dom.input.disabled = false;
-      app.dom.modelSelect.disabled = false;
-      app.updateStatus();
+      app.dom.sendBtn.disabled = false;
     }
+    updateApiDependentState();
   };
 
   /** Update send button state based on API key presence */
   const updateStatus = () => {
     const has = !!app.settings.apiKey;
     app.dom.sendBtn.disabled = !has;
+  };
+
+  const updateApiDependentState = () => {
+    const locked = !app.settings.apiKey;
+    app.dom.modelSelect.disabled = locked;
+    if (app.dom.btnContext) app.dom.btnContext.disabled = locked;
   };
 
   /**
@@ -703,10 +709,10 @@ function SettingsModule(app) {
         await save();
         if (app.dom.welcome) app.dom.welcome.classList.add("hidden");
         app.dom.input.disabled = false;
-        app.dom.modelSelect.disabled = false;
         app.dom.sendBtn.disabled = false;
         app.fetchUsage();
         updateStatus();
+        updateApiDependentState();
         if (app.settings.saveHistory) {
           await app.loadHistory();
           await app.loadChatHistories();

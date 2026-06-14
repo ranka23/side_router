@@ -15,7 +15,6 @@
     "activeTab",
     "scripting",
     "tabs",
-    "windows"
   ],
   "host_permissions": [
     "https://openrouter.ai/*",
