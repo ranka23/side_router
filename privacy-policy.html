@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SideRouter — Privacy Policy</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; color: #1a1a2e; background: #fafafa; padding: 2rem; max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: #1a1a2e; }
+    h2 { font-size: 1.3rem; margin-top: 2rem; margin-bottom: 0.5rem; color: #374785; }
+    p, li { font-size: 1rem; margin-bottom: 0.8rem; }
+    ul { padding-left: 1.5rem; }
+    a { color: #6366f1; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+    .section { margin-bottom: 2rem; }
+    code { background: #f0f0f5; padding: 0.1em 0.3em; border-radius: 4px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <h1>SideRouter — Privacy Policy</h1>
+  <p class="meta">Last updated: June 14, 2026</p>
+
+  <div class="section">
+    <h2>Introduction</h2>
+    <p>This Privacy Policy describes how the SideRouter browser extension ("Extension") handles data when you use it. SideRouter is an open-source AI chat browser extension powered by OpenRouter.ai.</p>
+  </div>
+
+  <div class="section">
+    <h2>Data Collection</h2>
+    <p>The Extension collects and stores the following data <strong>locally on your device only</strong>:</p>
+    <ul>
+      <li><strong>API Key</strong> — Your OpenRouter API key, stored in the browser's extension storage. This is never transmitted anywhere except directly to OpenRouter.ai's API endpoint.</li>
+      <li><strong>Chat Messages</strong> — Conversation history, stored in extension storage if you enable "Save chat history" in Settings.</li>
+      <li><strong>Settings</strong> — Your preferences such as theme, model selection, zoom level, and auto-approve settings.</li>
+      <li><strong>Page Context</strong> — When explicitly added by you, the extension reads the current tab's content. This is sent as context to the AI model and is not stored beyond the conversation.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Data Transmission</h2>
+    <p>The Extension sends data in the following cases:</p>
+    <ul>
+      <li><strong>OpenRouter API calls</strong> — Your messages, selected model, and optional page context are sent to <code>https://openrouter.ai/api/v1/chat/completions</code> to generate AI responses. Your API key is sent via the <code>Authorization</code> header.</li>
+      <li><strong>Model list fetch</strong> — The extension fetches available models from <code>https://openrouter.ai/api/v1/models</code>.</li>
+    </ul>
+    <p>No data is sent to any other third-party server. All data processing happens either in your browser or through the OpenRouter API.</p>
+  </div>
+
+  <div class="section">
+    <h2>Data Storage</h2>
+    <ul>
+      <li>All data is stored locally using the browser's <code>chrome.storage.local</code> (Chrome) or <code>browser.storage.local</code> (Firefox) API.</li>
+      <li>No data is transmitted to or stored on any external server operated by the Extension developer.</li>
+      <li>Chat history and settings remain on your device and can be deleted at any time from the Extension's Settings.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Third-Party Services</h2>
+    <p>The Extension uses <strong>OpenRouter.ai</strong> as its AI API provider. When you use the Extension, your messages and API key are subject to <a href="https://openrouter.ai/terms" target="_blank" rel="noopener noreferrer">OpenRouter's Terms of Service</a> and <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</p>
+  </div>
+
+  <div class="section">
+    <h2>Permissions</h2>
+    <p>The Extension requests the following browser permissions:</p>
+    <ul>
+      <li><strong>storage</strong> — To save your settings and chat history locally.</li>
+      <li><strong>activeTab</strong> — To allow the AI to read the current tab's content when you explicitly add it as context.</li>
+      <li><strong>scripting</strong> — To execute JavaScript on the current page when you approve AI requests (must be explicitly enabled).</li>
+      <li><strong>tabs</strong> — To list open tabs for adding tab context to conversations.</li>
+      <li><strong>windows</strong> — To open display not blocking popup windows for the floating chat window.</li>
+      <li><strong>sidePanel</strong> — To provide the sidebar chat experience (Chrome only).</li>
+      <li><strong>Host permissions</strong> — Required to read web page content and execute scripts on pages.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>JavaScript Execution</h2>
+    <p>The Extension has the capability to execute JavaScript on web pages via a permission system. The AI will request your approval before executing any code. You can:</p>
+    <ul>
+      <li>Approve or deny each request individually.</li>
+      <li>Remember decisions for future requests of the same type.</li>
+      <li>Enable "Auto-approve" in Settings to skip prompts.</li>
+      <li>The Extension blocks potentially dangerous patterns such as <code>eval</code>, <code>document.cookie</code>, <code>localStorage</code> access, and other security risks.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Data Retention</h2>
+    <ul>
+      <li>Your API key and settings remain stored until you manually delete them or uninstall the Extension.</li>
+      <li>Chat history is retained only if you enable "Save chat history" in Settings.</li>
+      <li>You can delete all data by clearing the Extension's storage in Settings or by uninstalling the Extension.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Children's Privacy</h2>
+    <p>The Extension is not intended for use by children under the age of 13. We do not knowingly collect data from children.</p>
+  </div>
+
+  <div class="section">
+    <h2>Changes to This Policy</h2>
+    <p>This Privacy Policy may be updated from time to time. Changes will be reflected in the "Last updated" date at the top of this page.</p>
+  </div>
+
+  <div class="section">
+    <h2>Contact</h2>
+    <p>If you have questions about this Privacy Policy, please contact us via the project's GitHub repository: <a href="https://github.com/ranka23/side-router" target="_blank" rel="noopener noreferrer">https://github.com/ranka23/side-router</a></p>
+  </div>
+</body>
+</html>

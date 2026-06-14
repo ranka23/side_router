@@ -4,3 +4,11 @@ node_modules
 .vscode
 # CocoIndex Code (ccc)
 /.cocoindex_code/
+
+# Build output
+dist/
+*.zip
+
+# OS files
+.DS_Store
+/screenshots

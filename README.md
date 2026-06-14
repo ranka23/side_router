@@ -149,6 +149,48 @@ SideRouter uses caveman-style compression to reduce token usage by ~60-75%:
 | Default AI Model | Model for new chats (optional) |
 | Caveman Compression | Reduce token usage by compressing context and requesting terse AI replies |
 
+## Building for Production
+
+```bash
+# Build both Chrome and Firefox ZIPs (minified, ready for store upload)
+npm run build
+
+# Build Chrome only
+npm run build:chrome
+
+# Build Firefox only
+npm run build:firefox
+```
+
+Output will be in `dist/chrome.zip` and `dist/firefox.zip`. The build script:
+- Minifies all JavaScript (terser, 3-pass compression + mangling)
+- Optimizes CSS (csso)
+- Minifies HTML (html-minifier-terser)
+- Strips comments and whitespace from all files
+- Excludes tests, screenshots, dev configs, and other non-runtime files
+- Reports before/after size reduction
+
+## Publishing
+
+### Chrome Web Store
+1. Run `npm run build:chrome`
+2. Go to the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+3. Pay the $5 one-time registration fee (if new account)
+4. Click "New Item" and upload `dist/chrome.zip`
+5. Use screenshots from `screenshots/` folder (1280×800 recommended)
+6. Copy store listing from `store-assets/chrome-listing.md`
+7. Set the privacy policy URL (host `privacy-policy.html` on GitHub Pages or your site)
+8. Submit for review (typically 1-3 business days)
+
+### Firefox Add-ons (AMO)
+1. Run `npm run build:firefox`
+2. Go to [addons.mozilla.org/developers](https://addons.mozilla.org/developers/)
+3. Create a free developer account (if new)
+4. Click "Submit a New Add-on" and upload `dist/firefox.zip`
+5. Add screenshots from `screenshots/` folder
+6. Copy store listing from `store-assets/firefox-listing.md`
+7. Submit for review (typically 1-5 business days)
+
 ## Development
 
 ```bash
