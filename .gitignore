@@ -2,3 +2,5 @@ node_modules
 
 .kilo
 .vscode
+# CocoIndex Code (ccc)
+/.cocoindex_code/
