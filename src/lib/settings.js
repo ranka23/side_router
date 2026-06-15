@@ -230,7 +230,6 @@ function SettingsModule(app) {
     var solImg = "media/sol-address.jpg";
     var ethAddr = walletAddresses.eth;
     var solAddr = walletAddresses.sol;
-    // Simple single-QR wallets: ETH and SOL
     var simpleCoins = [
       { id: "eth", img: ethImg, addr: ethAddr, label: "ETH" },
       { id: "sol", img: solImg, addr: solAddr, label: "SOL" },
@@ -239,22 +238,40 @@ function SettingsModule(app) {
       var c = simpleCoins[i];
       var qrEl = document.getElementById("qr-" + c.id);
       var addrEl = document.getElementById("donate-" + c.id + "-addr");
-      if (qrEl) qrEl.innerHTML = '<img src="' + c.img + '" alt="' + c.label + ' QR Code" class="donate-qr-img" />';
+      if (qrEl) {
+        qrEl.textContent = "";
+        var img = document.createElement("img");
+        img.src = c.img;
+        img.alt = c.label + " QR Code";
+        img.className = "donate-qr-img";
+        qrEl.appendChild(img);
+      }
       if (addrEl) { addrEl.textContent = c.addr; addrEl.title = c.addr; }
     }
-    // Dual-QR wallets: USDC and USDT (both chains)
     var dualCoins = ["usdc", "usdt"];
     for (var j = 0; j < dualCoins.length; j++) {
       var coin = dualCoins[j];
-      // ETH side
       var ethQr = document.getElementById("qr-" + coin + "-eth");
       var ethAddrEl = document.getElementById("donate-" + coin + "-eth-addr");
-      if (ethQr) ethQr.innerHTML = '<img src="' + ethImg + '" alt="' + coin.toUpperCase() + ' ETH QR Code" class="donate-qr-img" />';
+      if (ethQr) {
+        ethQr.textContent = "";
+        var ethImgEl = document.createElement("img");
+        ethImgEl.src = ethImg;
+        ethImgEl.alt = coin.toUpperCase() + " ETH QR Code";
+        ethImgEl.className = "donate-qr-img";
+        ethQr.appendChild(ethImgEl);
+      }
       if (ethAddrEl) { ethAddrEl.textContent = ethAddr; ethAddrEl.title = ethAddr; }
-      // SOL side
       var solQr = document.getElementById("qr-" + coin + "-sol");
       var solAddrEl = document.getElementById("donate-" + coin + "-sol-addr");
-      if (solQr) solQr.innerHTML = '<img src="' + solImg + '" alt="' + coin.toUpperCase() + ' SOL QR Code" class="donate-qr-img" />';
+      if (solQr) {
+        solQr.textContent = "";
+        var solImgEl = document.createElement("img");
+        solImgEl.src = solImg;
+        solImgEl.alt = coin.toUpperCase() + " SOL QR Code";
+        solImgEl.className = "donate-qr-img";
+        solQr.appendChild(solImgEl);
+      }
       if (solAddrEl) { solAddrEl.textContent = solAddr; solAddrEl.title = solAddr; }
     }
   };
@@ -391,14 +408,14 @@ function SettingsModule(app) {
     var wrapper = document.createElement("div");
     wrapper.className = "model-dropdown-wrapper";
     // Hidden select for actual value (keep options in sync for test compat)
-    sel.innerHTML = "";
+    sel.textContent = "";
     // Add optgroup labels so checkPaidModel can detect paid vs free
     var freeOptgroup = document.createElement("optgroup");
     freeOptgroup.label = "Free Models";
     var paidOptgroup = document.createElement("optgroup");
     paidOptgroup.label = "Paid Models";
     // Rebuild with optgroups
-    sel.innerHTML = "";
+    sel.textContent = "";
     free.forEach(function (m) {
       var o = document.createElement("option");
       o.value = m.id;
@@ -428,7 +445,7 @@ function SettingsModule(app) {
     triggerText.textContent = app.settings.selectedModel || "Select model";
     var triggerArrow = document.createElement("span");
     triggerArrow.className = "model-dropdown-arrow";
-    triggerArrow.innerHTML = "&#9662;";
+    triggerArrow.textContent = "\u25BC";
     trigger.appendChild(triggerText);
     trigger.appendChild(triggerArrow);
     // Dropdown panel with search
@@ -439,7 +456,22 @@ function SettingsModule(app) {
     searchWrap.className = "model-dropdown-search-wrap";
     var searchIcon = document.createElement("span");
     searchIcon.className = "model-dropdown-search-icon";
-    searchIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
+    var searchSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    searchSvg.setAttribute("width", "12");
+    searchSvg.setAttribute("height", "12");
+    searchSvg.setAttribute("viewBox", "0 0 24 24");
+    searchSvg.setAttribute("fill", "none");
+    searchSvg.setAttribute("stroke", "currentColor");
+    searchSvg.setAttribute("stroke-width", "2");
+    var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", "11");
+    circle.setAttribute("cy", "11");
+    circle.setAttribute("r", "8");
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M21 21l-4.35-4.35");
+    searchSvg.appendChild(circle);
+    searchSvg.appendChild(path);
+    searchIcon.appendChild(searchSvg);
     var searchInput = document.createElement("input");
     searchInput.type = "text";
     searchInput.className = "model-dropdown-search";
@@ -453,7 +485,7 @@ function SettingsModule(app) {
     optionsList.className = "model-dropdown-options";
     optionsList.setAttribute("role", "listbox");
     function renderOptions(filter) {
-      optionsList.innerHTML = "";
+      optionsList.textContent = "";
       var f = (filter || "").toLowerCase();
       var lastGroup = "";
       allModels.forEach(function (m) {
@@ -609,7 +641,7 @@ function SettingsModule(app) {
     const usedChars = app.messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
     const usedTokens = Math.round(usedChars / 4);
     const pct = Math.min(100, Math.round((usedTokens / contextLength) * 100));
-    app.dom.usageBadge.innerHTML = `${usedTokens} / ${contextLength} tokens <span class="context-pct">(${pct}%)</span>`;
+    app.dom.usageBadge.textContent = `${usedTokens} / ${contextLength} tokens (${pct}%)`;
   };
 
   /** Show/hide the pro notice based on whether the selected model is paid */
@@ -661,7 +693,7 @@ function SettingsModule(app) {
   };
 
   /** Lock or unlock the UI based on whether an API key is present */
-  const setLocked = (locked) => {
+  const setLocked = locked => {
     if (locked) {
       app.dom.input.disabled = true;
       app.dom.sendBtn.disabled = true;
@@ -671,8 +703,8 @@ function SettingsModule(app) {
       if (app.dom.welcome) app.dom.welcome.classList.add("hidden");
       app.dom.input.disabled = false;
       app.dom.sendBtn.disabled = false;
+      app.dom.modelSelect.disabled = false;
     }
-    updateApiDependentState();
   };
 
   /** Update send button state based on API key presence */
@@ -740,7 +772,11 @@ function SettingsModule(app) {
   const populateDefaultModelSelect = () => {
     const sel = app.dom.defaultModelSelect;
     if (!sel) return;
-    sel.innerHTML = '<option value="">Use most recent model</option>';
+    sel.textContent = "";
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Use most recent model";
+    sel.appendChild(defaultOpt);
     if (app.dom.modelSelect) {
       const options = app.dom.modelSelect.querySelectorAll('option');
       options.forEach(opt => {

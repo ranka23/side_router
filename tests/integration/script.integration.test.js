@@ -110,10 +110,10 @@ describe('Integration: Model Selection Flow', () => {
 
   test('updateContextPercent updates badge with token info', () => {
     const { app } = setup();
-    app.dom.usageBadge = { innerHTML: '' };
+    app.dom.usageBadge = { textContent: '' };
     app.messages = [{ role: 'user', content: 'Hello' }];
     app.updateContextPercent(4096);
-    expect(app.dom.usageBadge.innerHTML).toContain('tokens');
+    expect(app.dom.usageBadge.textContent).toContain('tokens');
   });
 });
 

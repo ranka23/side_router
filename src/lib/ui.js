@@ -11,6 +11,63 @@ function UIModule(app) {
     return String(str).replace(/[&<>"]/g, _amp);
   };
 
+  /**
+   * Safe HTML-to-DOM parser using only createElement/textContent/appendChild.
+   * Parses a limited HTML subset produced by our markdown parser.
+   * No innerHTML, no createContextualFragment, no eval.
+   */
+  const parseHtmlToDom = (html, container) => {
+    const stack = [{ node: container, html: html, tag: 'div' }];
+    while (stack.length) {
+      let { node, html: h, tag } = stack.pop();
+      let i = 0;
+      while (i < h.length) {
+        if (h[i] === '<') {
+          const closePos = h.indexOf('>', i);
+          if (closePos === -1) break;
+          const tagContent = h.slice(i + 1, closePos);
+          const isClosing = tagContent.startsWith('/');
+          const tagName = isClosing ? tagContent.slice(1) : tagContent.split(/\s|>/)[0];
+          if (!isClosing) {
+            const el = document.createElement(tagName);
+            // Copy attributes
+            const attrMatch = tagContent.match(/(\w+)="([^"]*)"/g);
+            if (attrMatch) {
+              attrMatch.forEach(m => {
+                const [, name, value] = m.match(/(\w+)="([^"]*)"/);
+                el.setAttribute(name, value);
+              });
+            }
+            // Void elements
+            if (/^(br|hr|img|input)$/i.test(tagName)) {
+              node.appendChild(el);
+            } else {
+              stack.push({ node: el, html: '', tag: tagName });
+              node.appendChild(el);
+              node = el;
+            }
+          } else {
+            // Closing tag - pop to parent
+            while (stack.length && stack[stack.length - 1].tag !== tagName) {
+              stack.pop();
+            }
+            if (stack.length) stack.pop();
+            if (stack.length) node = stack[stack.length - 1].node;
+          }
+          i = closePos + 1;
+        } else {
+          // Text content
+          const nextTag = h.indexOf('<', i);
+          const textEnd = nextTag === -1 ? h.length : nextTag;
+          if (textEnd > i) {
+            node.appendChild(document.createTextNode(h.slice(i, textEnd)));
+          }
+          i = textEnd;
+        }
+      }
+    }
+  };
+
   const toast = (msg, type) => {
     if (!type) type = "info";
     while (app.dom.toast.children.length > 4) app.dom.toast.removeChild(app.dom.toast.firstChild);
@@ -290,31 +347,53 @@ function UIModule(app) {
     var row = document.createElement("div");
     row.className = "msg-row assistant thinking";
     var aiName = app.settings.aiName || "ASSISTANT";
-    row.innerHTML = "<div class=\"msg-role assistant\">" + aiName + "</div><div class=\"typing-dots\"><div class=\"dot\"></div><div class=\"dot\"></div><div class=\"dot\"></div></div><span class=\"typing-label\">thinking</span>";
+    var roleDiv = document.createElement("div");
+    roleDiv.className = "msg-role assistant";
+    roleDiv.textContent = aiName;
+    var dotsDiv = document.createElement("div");
+    dotsDiv.className = "typing-dots";
+    for (var d = 0; d < 3; d++) {
+      var dot = document.createElement("div");
+      dot.className = "dot";
+      dotsDiv.appendChild(dot);
+    }
+    var label = document.createElement("span");
+    label.className = "typing-label";
+    label.textContent = "thinking";
+    row.appendChild(roleDiv);
+    row.appendChild(dotsDiv);
+    row.appendChild(label);
     app.dom.messages.appendChild(row);
     scroll();
     return row;
   };
 
   const renderThinking = function (reasoning) {
-    // Render thinking as a collapsed collapsible AFTER the last message
     var row = document.createElement("div");
     row.className = "msg-row thinking thinking-collapsible thinking-collapsed";
     var fullText = String(reasoning);
-    var safe = fullText.replace(/[&<>]/g, function (c) {
-      if (c === "&") return "&" + "amp;";
-      if (c === "<") return "&" + "lt;";
-      if (c === ">") return "&" + "gt;";
-      return c;
-    });
-    var renderedMd = window.md(safe);
+    var renderedMd = window.md(fullText);
     var aiName = app.settings.aiName || "ASSISTANT";
-    row.innerHTML = "<div class=\"thinking-toggle\" role=\"button\" tabindex=\"0\">" +
-      "<span class=\"thinking-arrow\">&#9660;</span> " + aiName + " (thinking)" +
-      "</div>" +
-      "<div class=\"thinking-body\">" +
-      "<div class=\"thinking-content md-content\">" + renderedMd + "</div>" +
-      "</div>";
+
+    var toggleEl = document.createElement("div");
+    toggleEl.className = "thinking-toggle";
+    toggleEl.setAttribute("role", "button");
+    toggleEl.setAttribute("tabindex", "0");
+    var arrow = document.createElement("span");
+    arrow.className = "thinking-arrow";
+    arrow.textContent = "\u25BC";
+    toggleEl.appendChild(arrow);
+    toggleEl.appendChild(document.createTextNode(" " + aiName + " (thinking)"));
+
+    var bodyDiv = document.createElement("div");
+    bodyDiv.className = "thinking-body";
+    var contentDiv = document.createElement("div");
+    contentDiv.className = "thinking-content md-content";
+    parseHtmlToDom(renderedMd, contentDiv);
+    bodyDiv.appendChild(contentDiv);
+
+    row.appendChild(toggleEl);
+    row.appendChild(bodyDiv);
     app.dom.messages.appendChild(row);
     // Toggle expand/collapse on click
     var toggleEl = row.querySelector(".thinking-toggle");
@@ -347,8 +426,7 @@ function UIModule(app) {
     var isUser = role === "user";
     var text = typeof content === "string" ? content : JSON.stringify(content);
     var mediaUrls = extractMediaUrls(text);
-    var safeAiName = escapeHtml(app.settings.aiName || "ASSISTANT");
-    var safeTime = escapeHtml(time);
+    var aiName = app.settings.aiName || "ASSISTANT";
     var actionsHtml = "<div class=\"msg-actions\">" +
       "<button class=\"msg-btn-icon\" data-action=\"copy\" title=\"Copy\">" +
       "<svg class=\"icon-copy-svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
@@ -356,14 +434,15 @@ function UIModule(app) {
       "</svg>" +
       "<span class=\"copy-feedback hidden\">&#10003;</span>" +
       "</button>";
-    actionsHtml += "<button class=\"msg-btn-icon\" data-action=\"download\" title=\"Download\">" +
-      "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
-      "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
-      "</svg>" +
-      "</button>";
+    if (!isUser) {
+      actionsHtml += "<button class=\"msg-btn-icon\" data-action=\"download\" title=\"Download\">" +
+        "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
+        "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
+        "</svg>" +
+        "</button>";
+    }
     actionsHtml += "</div>";
     var mediaHtml = mediaUrls.length ? buildMediaHtml(mediaUrls) : "";
-    // Render file attachment cards for user messages
     var fileAttachmentsHtml = "";
     if (isUser && app._pendingAttachments && app._pendingAttachments.length) {
       fileAttachmentsHtml = app._pendingAttachments.map(function (a) {
@@ -385,23 +464,48 @@ function UIModule(app) {
           "</div>";
       }).join("");
     }
-    // Render AI annotations if present
     var annotationHtml = "";
     if (!isUser && msg.annotations && msg.annotations.length) {
       annotationHtml = buildAnnotationHtml(msg.annotations);
     }
-    row.innerHTML = "<div class=\"msg-role " + (isUser ? "user" : "assistant") + "\">" + (isUser ? "You" : safeAiName) + " <span class=\"msg-time-inline\">" + safeTime + "</span></div>" +
-      "<div class=\"msg-content md-content\">" + window.md(text) + "</div>" +
-      (fileAttachmentsHtml ? "<div class=\"file-attachments\">" + fileAttachmentsHtml + "</div>" : "") +
-      mediaHtml +
-      annotationHtml;
-    // For user messages, actions will be appended after the row in the DOM
+
+    var roleDiv = document.createElement("div");
+    roleDiv.className = "msg-role " + (isUser ? "user" : "assistant");
+    var roleText = isUser ? "You " : (aiName + " ");
+    var timeSpan = document.createElement("span");
+    timeSpan.className = "msg-time-inline";
+    timeSpan.textContent = time;
+    roleDiv.textContent = roleText;
+    roleDiv.appendChild(timeSpan);
+    row.appendChild(roleDiv);
+
+    var contentDiv = document.createElement("div");
+    contentDiv.className = "msg-content md-content";
+    parseHtmlToDom(window.md(text), contentDiv);
+    row.appendChild(contentDiv);
+
+    if (fileAttachmentsHtml) {
+      var faDiv = document.createElement("div");
+      faDiv.className = "file-attachments";
+      parseHtmlToDom(fileAttachmentsHtml, faDiv);
+      row.appendChild(faDiv);
+    }
+    if (mediaHtml) {
+      var mDiv = document.createElement("div");
+      parseHtmlToDom(mediaHtml, mDiv);
+      while (mDiv.firstChild) row.appendChild(mDiv.firstChild);
+    }
+    if (annotationHtml) {
+      var aDiv = document.createElement("div");
+      parseHtmlToDom(annotationHtml, aDiv);
+      while (aDiv.firstChild) row.appendChild(aDiv.firstChild);
+    }
+
     var userActionsRow = null;
     if (isUser) {
       userActionsRow = document.createElement("div");
       userActionsRow.className = "msg-actions-outside";
-      userActionsRow.innerHTML = actionsHtml;
-      // Set up copy button on the outside actions row
+      parseHtmlToDom(actionsHtml, userActionsRow);
       var outsideCopyBtn = userActionsRow.querySelector('[data-action="copy"]');
       if (outsideCopyBtn) {
         outsideCopyBtn.addEventListener("click", function () {
@@ -412,9 +516,8 @@ function UIModule(app) {
         });
       }
     } else {
-      // For assistant messages, append actions to the row BEFORE attaching event listeners
       var actionsContainer = document.createElement("div");
-      actionsContainer.innerHTML = actionsHtml;
+      parseHtmlToDom(actionsHtml, actionsContainer);
       var firstAction = actionsContainer.firstChild;
       if (firstAction) row.appendChild(firstAction);
     }

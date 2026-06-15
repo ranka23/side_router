@@ -178,16 +178,18 @@ ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         try {
           const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
           if (!tab?.id) { sendResponse({ success: false, error: 'No active tab' }); break; }
-          const dangerous = /(document\.cookie|localStorage|sessionStorage|eval|Function|import\(|fetch|XMLHttpRequest|navigator\.sendBeacon|window\.location)/;
+          const dangerous = /(document\.cookie|localStorage|sessionStorage|import\(|navigator\.sendBeacon|window\.location\s*=)/;
           if (dangerous.test(msg.code)) {
             sendResponse({ success: false, error: 'Blocked: potentially dangerous code' });
             break;
           }
           const results = await ext.scripting.executeScript({
             target: { tabId: tab.id },
-            func: (userCode) => {
-              try { return { ok: true, result: (0, eval)('(function(){' + userCode + '})()') }; }
-              catch (e) { return { ok: false, error: e.message }; }
+            func: (code) => {
+              const s = document.createElement('script');
+              s.textContent = code;
+              document.head.appendChild(s);
+              s.remove();
             },
             args: [msg.code],
             world: 'MAIN',

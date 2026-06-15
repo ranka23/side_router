@@ -66,7 +66,7 @@ function ContextModule(app) {
   var loadPagePreview = async function () {
     var preview = app.dom.contextPagePreview;
     if (!preview) return;
-    preview.innerHTML = "<p class=\"context-empty\">Loading current page\u2026</p>";
+    preview.textContent = "Loading current page\u2026";
     try {
       var content = await app.getTabContent();
       if (content) {
@@ -90,31 +90,74 @@ function ContextModule(app) {
           formattedText += bodyText.slice(0, 1500);
           if (bodyText.length > 1500) formattedText += "\u2026";
         }
-        var safeTitle = _esc(content.title);
-        var safeUrl = _esc(content.url);
         var displayTitle = _truncate(content.title, 50);
         var displayUrl = _truncate(content.url, 50);
-        var safeFormatted = _esc(formattedText) || "No text content available.";
-        preview.innerHTML = [
-          '<div class="context-page-info">',
-          '<div class="context-page-header">',
-          '<div class="context-page-title-row">',
-          '<svg class="context-page-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>',
-          '<strong class="context-page-title">', displayTitle, '</strong>',
-          '</div>',
-          '<span class="context-page-url">', displayUrl, '</span>',
-          '</div>',
-          '<div class="context-page-text">', safeFormatted, '</div>',
-          '</div>'
-        ].join("");
+
+        preview.textContent = "";
+        var pageInfo = document.createElement("div");
+        pageInfo.className = "context-page-info";
+
+        var pageHeader = document.createElement("div");
+        pageHeader.className = "context-page-header";
+
+        var titleRow = document.createElement("div");
+        titleRow.className = "context-page-title-row";
+
+        var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("class", "context-page-icon");
+        svg.setAttribute("width", "16");
+        svg.setAttribute("height", "16");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "2");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", "12");
+        circle.setAttribute("cy", "12");
+        circle.setAttribute("r", "10");
+        var line1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line1.setAttribute("x1", "2");
+        line1.setAttribute("y1", "12");
+        line1.setAttribute("x2", "22");
+        line1.setAttribute("y2", "12");
+        var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", "M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z");
+        svg.appendChild(circle);
+        svg.appendChild(line1);
+        svg.appendChild(path);
+
+        var titleStrong = document.createElement("strong");
+        titleStrong.className = "context-page-title";
+        titleStrong.textContent = displayTitle;
+
+        titleRow.appendChild(svg);
+        titleRow.appendChild(titleStrong);
+
+        var urlSpan = document.createElement("span");
+        urlSpan.className = "context-page-url";
+        urlSpan.textContent = displayUrl;
+
+        pageHeader.appendChild(titleRow);
+        pageHeader.appendChild(urlSpan);
+
+        var textDiv = document.createElement("div");
+        textDiv.className = "context-page-text";
+        textDiv.textContent = formattedText || "No text content available.";
+
+        pageInfo.appendChild(pageHeader);
+        pageInfo.appendChild(textDiv);
+        preview.appendChild(pageInfo);
+
         preview.dataset.pageTitle = content.title;
         preview.dataset.pageUrl = content.url;
         preview.dataset.pageContent = (content.text || "").slice(0, 4000);
       } else {
-        preview.innerHTML = "<p class=\"context-empty\">Unable to load page content.</p>";
+        preview.textContent = "Unable to load page content.";
       }
     } catch (e) {
-      preview.innerHTML = "<p class=\"context-empty\">Unable to load page content.</p>";
+      preview.textContent = "Unable to load page content.";
     }
   };
 
@@ -122,30 +165,85 @@ function ContextModule(app) {
   var loadTabsList = async function () {
     var list = app.dom.contextTabsList;
     if (!list) return;
-    list.innerHTML = "<p class=\"context-empty\">Loading tabs…</p>";
+    list.textContent = "Loading tabs\u2026";
     try {
       var tabs = await chrome.tabs.query({});
       app._contextSelectedTabs = new Set();
-      list.innerHTML = tabs.map(function (tab) {
-        var title = _esc(tab.title);
-        var url = _esc(tab.url || "");
-        var favicon = tab.favIconUrl || "";
-        var safeFavicon = _esc(favicon);
-        var displayTitle = _truncate(tab.title, 50);
-        var displayUrl = _truncate(tab.url || "", 50);
-        return [
-          '<label class="context-tab-item" data-tab-id="', tab.id, '">',
-          '<input type="checkbox" data-tab-id="', tab.id, '" />',
-          '<span class="context-tab-favicon-wrap">',
-          favicon ? '<img src="' + safeFavicon + '" alt="" class="context-tab-favicon" onerror="this.style.display=\'none\'" />' : '<span class="context-tab-favicon context-tab-favicon-placeholder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>',
-          '</span>',
-          '<span class="context-tab-info">',
-          '<span class="context-tab-title" title="', title, '">', displayTitle, '</span>',
-          '<span class="context-tab-url" title="', url, '">', displayUrl, '</span>',
-          '</span>',
-          '</label>'
-        ].join("");
-      }).join("");
+      list.textContent = "";
+      tabs.forEach(function (tab) {
+        var label = document.createElement("label");
+        label.className = "context-tab-item";
+        label.dataset.tabId = tab.id;
+
+        var cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.tabId = tab.id;
+
+        var faviconWrap = document.createElement("span");
+        faviconWrap.className = "context-tab-favicon-wrap";
+        if (tab.favIconUrl) {
+          var favImg = document.createElement("img");
+          favImg.src = tab.favIconUrl;
+          favImg.alt = "";
+          favImg.className = "context-tab-favicon";
+          favImg.onerror = function () { this.style.display = "none"; };
+          faviconWrap.appendChild(favImg);
+        } else {
+          var placeholder = document.createElement("span");
+          placeholder.className = "context-tab-favicon context-tab-favicon-placeholder";
+          var phSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          phSvg.setAttribute("width", "16");
+          phSvg.setAttribute("height", "16");
+          phSvg.setAttribute("viewBox", "0 0 24 24");
+          phSvg.setAttribute("fill", "none");
+          phSvg.setAttribute("stroke", "currentColor");
+          phSvg.setAttribute("stroke-width", "2");
+          phSvg.setAttribute("aria-hidden", "true");
+          phSvg.setAttribute("focusable", "false");
+          var phRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          phRect.setAttribute("x", "2");
+          phRect.setAttribute("y", "3");
+          phRect.setAttribute("width", "20");
+          phRect.setAttribute("height", "14");
+          phRect.setAttribute("rx", "2");
+          var phLine1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          phLine1.setAttribute("x1", "8");
+          phLine1.setAttribute("y1", "21");
+          phLine1.setAttribute("x2", "16");
+          phLine1.setAttribute("y2", "21");
+          var phLine2 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          phLine2.setAttribute("x1", "12");
+          phLine2.setAttribute("y1", "17");
+          phLine2.setAttribute("x2", "12");
+          phLine2.setAttribute("y2", "21");
+          phSvg.appendChild(phRect);
+          phSvg.appendChild(phLine1);
+          phSvg.appendChild(phLine2);
+          placeholder.appendChild(phSvg);
+          faviconWrap.appendChild(placeholder);
+        }
+
+        var tabInfo = document.createElement("span");
+        tabInfo.className = "context-tab-info";
+
+        var tabTitle = document.createElement("span");
+        tabTitle.className = "context-tab-title";
+        tabTitle.title = tab.title;
+        tabTitle.textContent = _truncate(tab.title, 50);
+
+        var tabUrl = document.createElement("span");
+        tabUrl.className = "context-tab-url";
+        tabUrl.title = tab.url || "";
+        tabUrl.textContent = _truncate(tab.url || "", 50);
+
+        tabInfo.appendChild(tabTitle);
+        tabInfo.appendChild(tabUrl);
+
+        label.appendChild(cb);
+        label.appendChild(faviconWrap);
+        label.appendChild(tabInfo);
+        list.appendChild(label);
+      });
       list.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
         cb.addEventListener("change", function () {
           var item = cb.closest(".context-tab-item");
@@ -174,7 +272,7 @@ function ContextModule(app) {
       addBtn.addEventListener("click", async function () { await attachTabsContext(tabs); });
       list.appendChild(addBtn);
     } catch (e) {
-      list.innerHTML = "<p class=\"context-empty\">Unable to load tabs.</p>";
+      list.textContent = "Unable to load tabs.";
     }
   };
 
@@ -190,17 +288,22 @@ function ContextModule(app) {
       var reader = new FileReader();
       reader.onload = function () {
         var display_name = _truncate(f.name, 50);
-        var safeName = _esc(display_name);
         var previewText = String(reader.result || "").slice(0, 500);
-        var safeText = _esc(previewText);
         var sizeKB = (f.size / 1024).toFixed(1);
-        preview.innerHTML = [
-          '<div class="context-file-info">',
-          '<strong>', safeName, '</strong>',
-          '<span>', sizeKB, ' KB \u00B7 ', f.type || "unknown", '</span>',
-          '<pre class="context-file-preview-text">', safeText, '\u2026</pre>',
-          '</div>'
-        ].join("");
+        preview.textContent = "";
+        var fileInfo = document.createElement("div");
+        fileInfo.className = "context-file-info";
+        var nameStrong = document.createElement("strong");
+        nameStrong.textContent = display_name;
+        var metaSpan = document.createElement("span");
+        metaSpan.textContent = sizeKB + " KB \u00B7 " + (f.type || "unknown");
+        var preText = document.createElement("pre");
+        preText.className = "context-file-preview-text";
+        preText.textContent = previewText + "\u2026";
+        fileInfo.appendChild(nameStrong);
+        fileInfo.appendChild(metaSpan);
+        fileInfo.appendChild(preText);
+        preview.appendChild(fileInfo);
         preview.dataset.fileName = f.name;
         preview.dataset.fileData = reader.result;
         preview.dataset.fileMime = f.type;
@@ -216,14 +319,17 @@ function ContextModule(app) {
       var reader2 = new FileReader();
       reader2.onload = function () {
         var display_name = _truncate(f.name, 50);
-        var safeName = _esc(display_name);
         var sizeKB = (f.size / 1024).toFixed(1);
-        preview.innerHTML = [
-          '<div class="context-file-info">',
-          '<strong>', safeName, '</strong>',
-          '<span>', sizeKB, ' KB \u00B7 ', f.type || "unknown", '</span>',
-          '</div>'
-        ].join("");
+        preview.textContent = "";
+        var fileInfo = document.createElement("div");
+        fileInfo.className = "context-file-info";
+        var nameStrong = document.createElement("strong");
+        nameStrong.textContent = display_name;
+        var metaSpan = document.createElement("span");
+        metaSpan.textContent = sizeKB + " KB \u00B7 " + (f.type || "unknown");
+        fileInfo.appendChild(nameStrong);
+        fileInfo.appendChild(metaSpan);
+        preview.appendChild(fileInfo);
         preview.dataset.fileName = f.name;
         preview.dataset.fileData = reader2.result;
         preview.dataset.fileMime = f.type;
@@ -291,7 +397,7 @@ function ContextModule(app) {
   var renderContextChips = function () {
     var container = app.dom.contextChips;
     if (!container) return;
-    container.innerHTML = "";
+    container.textContent = "";
     for (var ci = 0; ci < app.contextItems.length; ci++) {
       (function (idx) {
         var item = app.contextItems[idx];

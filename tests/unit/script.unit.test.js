@@ -407,7 +407,7 @@ describe('Context Percentage', () => {
   beforeEach(() => {
     buildMockEnv();
     app = new SideRouter();
-    app.dom.usageBadge = { innerHTML: '' };
+    app.dom.usageBadge = { textContent: '' };
   });
 
   test('calculates token usage percentage', () => {
@@ -416,14 +416,14 @@ describe('Context Percentage', () => {
       { role: 'assistant', content: 'Hi there!' },
     ];
     app.updateContextPercent(4096);
-    expect(app.dom.usageBadge.innerHTML).toContain('tokens');
-    expect(app.dom.usageBadge.innerHTML).toContain('%');
+    expect(app.dom.usageBadge.textContent).toContain('tokens');
+    expect(app.dom.usageBadge.textContent).toContain('%');
   });
 
   test('returns early for zero context length', () => {
-    app.dom.usageBadge = { innerHTML: '' };
+    app.dom.usageBadge = { textContent: '' };
     app.updateContextPercent(0);
-    expect(app.dom.usageBadge.innerHTML).toBe('');
+    expect(app.dom.usageBadge.textContent).toBe('');
   });
 });
 

@@ -5,7 +5,7 @@ function HistoryModule(app) {
       var d = await chrome.storage.local.get("currentChatMessages");
       if (d.currentChatMessages) {
         app.messages = JSON.parse(d.currentChatMessages);
-        app.dom.messages.innerHTML = "";
+        app.dom.messages.textContent = "";
         for (var mi = 0; mi < app.messages.length; mi++) {
           app.renderBubble(app.messages[mi].role, app.messages[mi].content, app.messages[mi].time, false);
         }
@@ -115,12 +115,12 @@ function HistoryModule(app) {
     await archiveCurrentChat();
     app.messages = [];
     app.currentChatId = null;
-    app.dom.messages.innerHTML = "";
+    app.dom.messages.textContent = "";
     app.dom.input.value = "";
     app.resize();
     app.clearAttachments();
     app.contextItems = [];
-    app.dom.contextChips.innerHTML = "";
+    app.dom.contextChips.textContent = "";
     await chrome.storage.local.remove("currentChatId");
     // Restore the default model if set
     if (app.settings.defaultModel && app.dom.modelSelect) {
@@ -158,35 +158,62 @@ function HistoryModule(app) {
     var list = app.dom.historyList;
     if (!list) return;
     if (!app.chatHistories.length) {
-      list.innerHTML = "<p class=\"history-empty\">No archived chats yet. Start a conversation and it will appear here.</p>";
+      list.textContent = "";
+      var emptyP = document.createElement("p");
+      emptyP.className = "history-empty";
+      emptyP.textContent = "No archived chats yet. Start a conversation and it will appear here.";
+      list.appendChild(emptyP);
       if (app.dom.historyClearAllBtn) app.dom.historyClearAllBtn.classList.add("hidden");
       return;
     }
     if (app.dom.historyClearAllBtn) app.dom.historyClearAllBtn.classList.remove("hidden");
-    list.innerHTML = app.chatHistories.map(function (chat) {
-      var safeTitle = chat.title.replace(/[&<>"]/g, function (c) { if (c === "&") return "&" + "amp;"; if (c === "<") return "&" + "lt;"; if (c === ">") return "&" + "gt;"; if (c === '"') return "&" + "quot;"; return c; });
-      var modelInfo = chat.model ? " \u00B7 <span class=\"history-model\">" + chat.model + "</span>" : "";
-      return "<div class=\"history-item\" role=\"listitem\" tabindex=\"0\" data-id=\"" + chat.id + "\" aria-label=\"" + safeTitle + "\">" +
-        "<div class=\"history-item-main\">" +
-        "<div class=\"history-title\">" + safeTitle + "</div>" +
-        "<div class=\"history-date\">" + new Date(chat.updatedAt).toLocaleDateString() + " " + new Date(chat.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " \u00B7 " + chat.messages.length + " messages" + modelInfo + "</div>" +
-        "</div>" +
-        "<div class=\"history-item-actions\">" +
-        "<button class=\"history-rename-btn\" data-rename-id=\"" + chat.id + "\" aria-label=\"Rename chat: " + safeTitle + "\" title=\"Rename\">" +
-        "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\" focusable=\"false\">" +
-        "<path d=\"M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7\"/>" +
-        "<path d=\"M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z\"/>" +
-        "</svg>" +
-        "</button>" +
-        "<button class=\"history-delete-btn\" data-delete-id=\"" + chat.id + "\" aria-label=\"Delete chat: " + safeTitle + "\">" +
-        "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\" focusable=\"false\">" +
-        "<polyline points=\"3 6 5 6 21 6\" />" +
-        "<path d=\"M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6\" />" +
-        "</svg>" +
-        "</button>" +
-        "</div>" +
-        "</div>";
-    }).join("");
+    list.textContent = "";
+    app.chatHistories.forEach(function (chat) {
+      var item = document.createElement("div");
+      item.className = "history-item";
+      item.setAttribute("role", "listitem");
+      item.setAttribute("tabindex", "0");
+      item.dataset.id = chat.id;
+      item.setAttribute("aria-label", chat.title);
+
+      var main = document.createElement("div");
+      main.className = "history-item-main";
+
+      var title = document.createElement("div");
+      title.className = "history-title";
+      title.textContent = chat.title;
+
+      var date = document.createElement("div");
+      date.className = "history-date";
+      var modelInfo = chat.model ? " \u00B7 " + chat.model : "";
+      date.textContent = new Date(chat.updatedAt).toLocaleDateString() + " " + new Date(chat.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " \u00B7 " + chat.messages.length + " messages" + modelInfo;
+
+      main.appendChild(title);
+      main.appendChild(date);
+
+      var actions = document.createElement("div");
+      actions.className = "history-item-actions";
+
+      var renameBtn = document.createElement("button");
+      renameBtn.className = "history-rename-btn";
+      renameBtn.dataset.renameId = chat.id;
+      renameBtn.setAttribute("aria-label", "Rename chat: " + chat.title);
+      renameBtn.title = "Rename";
+      renameBtn.textContent = "\u270E";
+
+      var deleteBtn = document.createElement("button");
+      deleteBtn.className = "history-delete-btn";
+      deleteBtn.dataset.deleteId = chat.id;
+      deleteBtn.setAttribute("aria-label", "Delete chat: " + chat.title);
+      deleteBtn.textContent = "\u2715";
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(deleteBtn);
+
+      item.appendChild(main);
+      item.appendChild(actions);
+      list.appendChild(item);
+    });
     list.querySelectorAll(".history-item").forEach(function (item) {
       var loadChat = function () {
         var id = item.dataset.id;
@@ -195,7 +222,7 @@ function HistoryModule(app) {
           app.archiveCurrentChat();
           app.messages = chat.messages.slice();
           app.currentChatId = id;
-          app.dom.messages.innerHTML = "";
+          app.dom.messages.textContent = "";
           // Restore the model used in this chat
           if (chat.model && app.dom.modelSelect) {
             var modelExists = Array.from(app.dom.modelSelect.options).some(function (o) { return o.value === chat.model; });
@@ -290,7 +317,7 @@ function HistoryModule(app) {
     if (!confirm("Clear all messages?")) return;
     app.messages = [];
     app.currentChatId = null;
-    app.dom.messages.innerHTML = "";
+    app.dom.messages.textContent = "";
     if (app.dom.welcome) app.dom.welcome.classList.remove("hidden");
     chrome.storage.local.remove(["currentChatMessages", "currentChatId"]);
   };

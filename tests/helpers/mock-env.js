@@ -93,10 +93,17 @@ function makeEl(id) {
     set innerHTML(v) {
       el._innerHTML = v;
     },
-    _listeners: listeners,
-    _children: [],
+    cloneNode: function (deep) {
+      const copy = makeEl(this.id || this.tagName || 'clone');
+      copy.textContent = this.textContent;
+      copy.className = this.className;
+      if (deep && this._children) {
+        copy._children = this._children.map(c => c.cloneNode ? c.cloneNode(deep) : c);
+      }
+      return copy;
+    },
     get children() {
-      return el._children;
+      return el._children || [];
     },
     get firstChild() {
       return el._children?.[0] || null;
@@ -131,6 +138,10 @@ function buildMockEnv() {
     createElement: (tag) => {
       const el = makeEl(tag);
       el.tagName = tag;
+      if (tag === 'template') {
+        el.content = makeEl('template-content');
+        el.content._children = [];
+      }
       return el;
     },
     body: {
@@ -166,6 +177,32 @@ function buildMockEnv() {
     },
     querySelector: () => null,
     querySelectorAll: () => [],
+    createTextNode: (text) => {
+      const node = makeEl('#text');
+      node.textContent = text;
+      node.nodeType = 3;
+      return node;
+    },
+    createRange: () => {
+      const frag = { _nodes: [], firstChild: null };
+      return {
+        selectNode: () => {},
+        createContextualFragment: (html) => {
+          const container = makeEl('fragment');
+          container._innerHTML = html;
+          container._children = [];
+          frag._nodes.push(container);
+          frag.firstChild = container;
+          return container;
+        },
+      };
+    },
+    createElementNS: (ns, tag) => {
+      const el = makeEl(tag);
+      el.tagName = tag;
+      el.namespaceURI = ns;
+      return el;
+    },
   };
 
   const win = {

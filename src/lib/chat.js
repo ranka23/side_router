@@ -15,6 +15,61 @@ function ChatModule(app) {
     return str.length > maxLen ? str.slice(0, maxLen) + "..." : str;
   };
 
+  /**
+   * Safe HTML-to-DOM parser using only createElement/textContent/appendChild.
+   * Parses a limited HTML subset produced by our markdown parser.
+   */
+  var parseHtmlToDom = function (html, container) {
+    var stack = [{ node: container, html: html, tag: 'div' }];
+    while (stack.length) {
+      var frame = stack.pop();
+      var node = frame.node;
+      var h = frame.html;
+      var tag = frame.tag;
+      var i = 0;
+      while (i < h.length) {
+        if (h[i] === '<') {
+          var closePos = h.indexOf('>', i);
+          if (closePos === -1) break;
+          var tagContent = h.slice(i + 1, closePos);
+          var isClosing = tagContent.startsWith('/');
+          var tagName = isClosing ? tagContent.slice(1) : tagContent.split(/\s|>/)[0];
+          if (!isClosing) {
+            var el = document.createElement(tagName);
+            var attrMatch = tagContent.match(/(\w+)="([^"]*)"/g);
+            if (attrMatch) {
+              attrMatch.forEach(function (m) {
+                var match = m.match(/(\w+)="([^"]*)"/);
+                if (match) el.setAttribute(match[1], match[2]);
+              });
+            }
+            if (/^(br|hr|img|input)$/i.test(tagName)) {
+              node.appendChild(el);
+            } else {
+              stack.push({ node: el, html: '', tag: tagName });
+              node.appendChild(el);
+              node = el;
+            }
+          } else {
+            while (stack.length && stack[stack.length - 1].tag !== tagName) {
+              stack.pop();
+            }
+            if (stack.length) stack.pop();
+            if (stack.length) node = stack[stack.length - 1].node;
+          }
+          i = closePos + 1;
+        } else {
+          var nextTag = h.indexOf('<', i);
+          var textEnd = nextTag === -1 ? h.length : nextTag;
+          if (textEnd > i) {
+            node.appendChild(document.createTextNode(h.slice(i, textEnd)));
+          }
+          i = textEnd;
+        }
+      }
+    }
+  };
+
   /** Get audio format from file name and MIME type */
   var getAudioFormat = function (filename, mime) {
     var ext = (filename.split(".").pop() || "").toLowerCase();
@@ -153,16 +208,32 @@ function ChatModule(app) {
     queueEl.style.cssText = "align-self:flex-end;align-items:flex-end;max-width:85%;";
     queueEl.dataset.queueTimestamp = timestamp;
     var attLabel = attachments.length ? " " + attachments.map(function (a) { return getLabel(a.type, a.mime); }).join(" ") : "";
-    queueEl.innerHTML = "<div class=\"msg-role queued\" style=\"flex-direction:row-reverse;\">Queued</div>" +
-      "<div class=\"msg-content md-content queued-content\">" + window.md(text) + attLabel + "</div>" +
-      "<div class=\"msg-queue-tag\" style=\"text-align:right;\">QUEUED</div>";
+
+    var roleDiv = document.createElement("div");
+    roleDiv.className = "msg-role queued";
+    roleDiv.style.flexDirection = "row-reverse";
+    roleDiv.textContent = "Queued";
+
+    var contentDiv = document.createElement("div");
+    contentDiv.className = "msg-content md-content queued-content";
+    parseHtmlToDom(window.md(text), contentDiv);
+    if (attLabel) contentDiv.appendChild(document.createTextNode(attLabel));
+
+    var tagDiv = document.createElement("div");
+    tagDiv.className = "msg-queue-tag";
+    tagDiv.style.textAlign = "right";
+    tagDiv.textContent = "QUEUED";
+
+    queueEl.appendChild(roleDiv);
+    queueEl.appendChild(contentDiv);
+    queueEl.appendChild(tagDiv);
     app.dom.messages.appendChild(queueEl);
     app.scroll();
     app.dom.input.value = "";
     app.resize();
     app.clearAttachments();
     app.contextItems = [];
-    app.dom.contextChips.innerHTML = "";
+    app.dom.contextChips.textContent = "";
     if (!app.isRunning) { processQueue(); }
   };
 
@@ -293,7 +364,7 @@ function ChatModule(app) {
     app.resize();
     app.clearAttachments();
     app.contextItems = [];
-    app.dom.contextChips.innerHTML = "";
+    app.dom.contextChips.textContent = "";
     await handleSend(text, attachments, null, contextItems);
   };
 
@@ -668,7 +739,7 @@ function ChatModule(app) {
 
   /** Render attachment chips in the input area */
   var renderAttachments = function () {
-    app.dom.attachments.innerHTML = "";
+    app.dom.attachments.textContent = "";
     for (var ai2 = 0; ai2 < app.attachments.length; ai2++) {
       var a2 = app.attachments[ai2];
       (function (idx) {
@@ -705,7 +776,7 @@ function ChatModule(app) {
   /** Clear all attachments */
   var clearAttachments = function () {
     app.attachments = [];
-    app.dom.attachments.innerHTML = "";
+    app.dom.attachments.textContent = "";
   };
 
   return {
