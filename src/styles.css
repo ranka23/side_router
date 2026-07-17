@@ -558,8 +558,6 @@ body.dark .welcome-status.loading {
   max-width: 80%;
   display: flex;
   flex-direction: column;
-  background: var(--primary-light);
-  border-radius: var(--radius);
   padding: 8px 12px;
 }
 .msg-row.assistant {
@@ -637,14 +635,15 @@ body.dark .welcome-status.loading {
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 4px;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   position: relative;
+  transition: all 0.15s;
 }
 .msg-btn-icon:hover {
   background: var(--bg-hover);
@@ -656,36 +655,10 @@ body.dark .welcome-status.loading {
   background: var(--bg-hover);
   color: var(--primary);
 }
-.msg-btn-icon.copying .icon-copy-svg {
-  display: none;
-}
-.msg-btn-icon .copy-feedback {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 12px;
-  color: var(--success);
-}
-.msg-btn-icon .copy-feedback.hidden {
-  display: none;
-}
-.msg-btn-icon.copying .copy-feedback {
-  display: block !important;
-}
-
-/* Actions outside user bubble */
-.msg-actions-outside {
-  display: flex;
-  gap: 4px;
-  padding: 2px 0 6px;
-  align-self: flex-end;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.msg-row.user:hover + .msg-actions-outside,
-.msg-actions-outside:hover {
-  opacity: 1;
+.msg-btn-icon svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 /* AI annotations container */

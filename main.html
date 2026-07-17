@@ -93,7 +93,7 @@
               <label for="model-select-inline" class="sr-only">Select model</label>
               <select id="model-select-inline" class="model-select-inline" aria-label="Select AI model"></select>
             </div>
-            <button id="btn-send" class="send-btn" disabled aria-label="Send message" title="Send">
+            <button id="btn-send" class="send-btn" aria-label="Send message" title="Send">
               <svg class="icon-send" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
               </svg>
@@ -240,9 +240,6 @@
               <span class="donate-address" id="donate-eth-addr" title="Ethereum wallet address">0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A</span>
               <button class="donate-copy-btn" data-wallet="eth" title="Copy to clipboard">📋</button>
             </div>
-            <div class="donate-wallet-label">
-              <span class="donate-wallet-tag">Ethereum</span>
-            </div>
           </div>
 
           <!-- SOL Wallet -->
@@ -255,61 +252,6 @@
             <div class="donate-address-row">
               <span class="donate-address" id="donate-sol-addr" title="Solana wallet address">H9kw2HG3eik5uKYoULHuzohoY7gCi1Jfqk38ppn1Szyo</span>
               <button class="donate-copy-btn" data-wallet="sol" title="Copy to clipboard">📋</button>
-            </div>
-            <div class="donate-wallet-label">
-              <span class="donate-wallet-tag">Solana</span>
-            </div>
-          </div>
-
-          <!-- USDC (Stablecoin — both chains) -->
-          <div class="donate-wallet">
-            <div class="donate-wallet-header">
-              <span class="donate-coin-icon">🔵</span>
-              <span class="donate-coin-name">USDC</span>
-            </div>
-            <div class="donate-qr-row">
-              <div class="donate-qr-col">
-                <span class="donate-qr-label">Ethereum</span>
-                <div class="donate-qr" id="qr-usdc-eth"></div>
-                <div class="donate-address-row">
-                  <span class="donate-address" id="donate-usdc-eth-addr" title="USDC on Ethereum">0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A</span>
-                  <button class="donate-copy-btn" data-wallet="usdc-eth" title="Copy ETH address">📋</button>
-                </div>
-              </div>
-              <div class="donate-qr-col sol-col">
-                <span class="donate-qr-label">Solana</span>
-                <div class="donate-qr" id="qr-usdc-sol"></div>
-                <div class="donate-address-row">
-                  <span class="donate-address" id="donate-usdc-sol-addr" title="USDC on Solana">H9kw2HG3eik5uKYoULHuzohoY7gCi1Jfqk38ppn1Szyo</span>
-                  <button class="donate-copy-btn" data-wallet="usdc-sol" title="Copy SOL address">📋</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- USDT (Stablecoin — both chains) -->
-          <div class="donate-wallet">
-            <div class="donate-wallet-header">
-              <span class="donate-coin-icon">🟢</span>
-              <span class="donate-coin-name">USDT</span>
-            </div>
-            <div class="donate-qr-row">
-              <div class="donate-qr-col">
-                <span class="donate-qr-label">Ethereum</span>
-                <div class="donate-qr" id="qr-usdt-eth"></div>
-                <div class="donate-address-row">
-                  <span class="donate-address" id="donate-usdt-eth-addr" title="USDT on Ethereum">0x907DB6Ad294bD6B9adAE4C2340d34883E32F121A</span>
-                  <button class="donate-copy-btn" data-wallet="usdt-eth" title="Copy ETH address">📋</button>
-                </div>
-              </div>
-              <div class="donate-qr-col sol-col">
-                <span class="donate-qr-label">Solana</span>
-                <div class="donate-qr" id="qr-usdt-sol"></div>
-                <div class="donate-address-row">
-                  <span class="donate-address" id="donate-usdt-sol-addr" title="USDT on Solana">H9kw2HG3eik5uKYoULHuzohoY7gCi1Jfqk38ppn1Szyo</span>
-                  <button class="donate-copy-btn" data-wallet="usdt-sol" title="Copy SOL address">📋</button>
-                </div>
-              </div>
             </div>
           </div>
 

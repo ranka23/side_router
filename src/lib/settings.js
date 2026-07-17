@@ -745,6 +745,8 @@ function SettingsModule(app) {
         app.fetchUsage();
         updateStatus();
         updateApiDependentState();
+        // Load models and select a default free model
+        await app.loadModels();
         if (app.settings.saveHistory) {
           await app.loadHistory();
           await app.loadChatHistories();

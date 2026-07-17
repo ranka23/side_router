@@ -80,7 +80,19 @@ class SideRouter {
     };
 
     // ── Core Event Bindings ────────────────────────────────────
-    this.dom.sendBtn.onclick = function () { try { self.send(); } catch (e) { console.error("send onclick:", e); self.setRunning(false); self.updateSendIcon(); } };
+    this.dom.sendBtn.onclick = function () {
+      try {
+        if (self.isRunning) {
+          self.abortTask();
+        } else {
+          self.send();
+        }
+      } catch (e) {
+        console.error("send onclick:", e);
+        self.setRunning(false);
+        self.updateSendIcon();
+      }
+    };
     this.dom.scrollBtn.onclick = function () { self.scrollToBottom(); };
     this.dom.scrollBtn.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); self.scrollToBottom(); } };
     this.dom.input.oninput = function () { self.resize(); };

@@ -12,6 +12,95 @@ function UIModule(app) {
   };
 
   /**
+   * Create a proper SVG element in the SVG namespace
+   */
+  const createSvgIcon = (width, height, viewBox, paths) => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+    svg.setAttribute("viewBox", viewBox);
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    paths.forEach(p => {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", p.tag || "path");
+      if (p.d) path.setAttribute("d", p.d);
+      if (p.x) path.setAttribute("x", p.x);
+      if (p.y) path.setAttribute("y", p.y);
+      if (p.width) path.setAttribute("width", p.width);
+      if (p.height) path.setAttribute("height", p.height);
+      if (p.rx) path.setAttribute("rx", p.rx);
+      if (p.ry) path.setAttribute("ry", p.ry);
+      if (p.points) path.setAttribute("points", p.points);
+      if (p.cx) path.setAttribute("cx", p.cx);
+      if (p.cy) path.setAttribute("cy", p.cy);
+      if (p.r) path.setAttribute("r", p.r);
+      if (p.stroke) path.setAttribute("stroke", p.stroke);
+      if (p.fill) path.setAttribute("fill", p.fill);
+      svg.appendChild(path);
+    });
+    return svg;
+  };
+
+  /**
+   * Create copy button with proper SVG
+   */
+  const createCopyBtn = (text, tooltip) => {
+    const btn = document.createElement("button");
+    btn.className = "msg-btn-icon";
+    btn.dataset.action = "copy";
+    btn.title = tooltip || "Copy";
+    btn.appendChild(createSvgIcon("14", "14", "0 0 24 24", [
+      { tag: "rect", x: "9", y: "9", width: "13", height: "13", rx: "2", ry: "2" },
+      { tag: "path", d: "M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" }
+    ]));
+    btn.addEventListener("click", function () {
+      navigator.clipboard.writeText(text);
+      toast("Copied!", "success");
+    });
+    return btn;
+  };
+
+  /**
+   * Create download button with proper SVG
+   */
+  const createDownloadBtn = (text, tooltip) => {
+    const btn = document.createElement("button");
+    btn.className = "msg-btn-icon";
+    btn.dataset.action = "download";
+    btn.title = tooltip || "Download";
+    btn.appendChild(createSvgIcon("14", "14", "0 0 24 24", [
+      { tag: "path", d: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" },
+      { tag: "polyline", points: "7 10 12 15 17 10" },
+      { tag: "line", x1: "12", y1: "15", x2: "12", y2: "3" }
+    ]));
+    btn.addEventListener("click", function () {
+      var ext = text.startsWith("```") ? "md" : "txt";
+      var blob = new Blob([text], { type: "text/plain" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "response-" + Date.now() + "." + ext;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast("Downloaded!", "success");
+    });
+    return btn;
+  };
+
+  /**
+   * Create actions container (copy + download buttons)
+   */
+  const createActions = (text, isUser) => {
+    const container = document.createElement("div");
+    container.className = "msg-actions";
+    container.appendChild(createCopyBtn(text, "Copy"));
+    container.appendChild(createDownloadBtn(text, "Download"));
+    return container;
+  };
+
+  /**
    * Safe HTML-to-DOM parser using only createElement/textContent/appendChild.
    * Parses a limited HTML subset produced by our markdown parser.
    * No innerHTML, no createContextualFragment, no eval.
@@ -128,11 +217,10 @@ function UIModule(app) {
     app.isRunning = running;
     if (running) {
       app.dom.sendBtn.classList.add("running");
-      app.dom.sendBtn.disabled = true;
+      // Don't disable the button - allow clicking to stop
       app.dom.input.disabled = true;
     } else {
       app.dom.sendBtn.classList.remove("running");
-      // Only enable sendBtn if there's an API key (updateStatus manages this)
       var hasKey = !!app.settings.apiKey;
       app.dom.sendBtn.disabled = !hasKey;
       app.dom.input.disabled = false;
@@ -427,21 +515,6 @@ function UIModule(app) {
     var text = typeof content === "string" ? content : JSON.stringify(content);
     var mediaUrls = extractMediaUrls(text);
     var aiName = app.settings.aiName || "ASSISTANT";
-    var actionsHtml = "<div class=\"msg-actions\">" +
-      "<button class=\"msg-btn-icon\" data-action=\"copy\" title=\"Copy\">" +
-      "<svg class=\"icon-copy-svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
-      "<rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\" ry=\"2\"/><path d=\"M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1\"/>" +
-      "</svg>" +
-      "<span class=\"copy-feedback hidden\">&#10003;</span>" +
-      "</button>";
-    if (!isUser) {
-      actionsHtml += "<button class=\"msg-btn-icon\" data-action=\"download\" title=\"Download\">" +
-        "<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">" +
-        "<path d=\"M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4\"/><polyline points=\"7 10 12 15 17 10\"/><line x1=\"12\" y1=\"15\" x2=\"12\" y2=\"3\"/>" +
-        "</svg>" +
-        "</button>";
-    }
-    actionsHtml += "</div>";
     var mediaHtml = mediaUrls.length ? buildMediaHtml(mediaUrls) : "";
     var fileAttachmentsHtml = "";
     if (isUser && app._pendingAttachments && app._pendingAttachments.length) {
@@ -501,35 +574,11 @@ function UIModule(app) {
       while (aDiv.firstChild) row.appendChild(aDiv.firstChild);
     }
 
-    var userActionsRow = null;
-    if (isUser) {
-      userActionsRow = document.createElement("div");
-      userActionsRow.className = "msg-actions-outside";
-      parseHtmlToDom(actionsHtml, userActionsRow);
-      var outsideCopyBtn = userActionsRow.querySelector('[data-action="copy"]');
-      if (outsideCopyBtn) {
-        outsideCopyBtn.addEventListener("click", function () {
-          navigator.clipboard.writeText(text);
-          outsideCopyBtn.classList.add("copying");
-          setTimeout(function () { outsideCopyBtn.classList.remove("copying"); }, 1500);
-          toast("Copied!", "success");
-        });
-      }
-    } else {
-      var actionsContainer = document.createElement("div");
-      parseHtmlToDom(actionsHtml, actionsContainer);
-      var firstAction = actionsContainer.firstChild;
-      if (firstAction) row.appendChild(firstAction);
-    }
-    var copyBtn = row.querySelector('[data-action="copy"]');
-    if (copyBtn) {
-      copyBtn.addEventListener("click", function () {
-        navigator.clipboard.writeText(text);
-        copyBtn.classList.add("copying");
-        setTimeout(function () { copyBtn.classList.remove("copying"); }, 1500);
-        toast("Copied!", "success");
-      });
-    }
+    // Create actions using proper DOM methods (not HTML strings) to ensure SVG renders correctly
+    var actions = createActions(text, isUser);
+    // For ALL messages (user and assistant), add actions inside the row
+    // This ensures consistent hover behavior via CSS .msg-row:hover .msg-actions
+    row.appendChild(actions);
     row.querySelectorAll('[data-action="code-copy"]').forEach(function (btn) {
       if (btn) {
         btn.addEventListener("click", function () {
@@ -552,24 +601,6 @@ function UIModule(app) {
           navigator.clipboard.writeText(el.textContent);
         });
         el.title = "Click to copy";
-      }
-    });
-    var downloadBtns = [row.querySelector('[data-action="download"]')];
-    if (isUser && userActionsRow) {
-      downloadBtns.push(userActionsRow.querySelector('[data-action="download"]'));
-    }
-    downloadBtns.forEach(function (downloadBtn) {
-      if (downloadBtn) {
-        downloadBtn.addEventListener("click", function () {
-          var ext = text.startsWith("```") ? "md" : "txt";
-          var blob = new Blob([text], { type: "text/plain" });
-          var a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = "response-" + Date.now() + "." + ext;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          toast("Downloaded!", "success");
-        });
       }
     });
     row.querySelectorAll('[data-action="download-media"]').forEach(function (btn) {
@@ -641,10 +672,6 @@ function UIModule(app) {
     });
     // Append row to the DOM
     app.dom.messages.appendChild(row);
-    // For user messages, append copy/download actions OUTSIDE the row (below the bubble)
-    if (isUser && userActionsRow) {
-      app.dom.messages.appendChild(userActionsRow);
-    }
     return row;
   };
 

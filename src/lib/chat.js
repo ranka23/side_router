@@ -690,7 +690,6 @@ function ChatModule(app) {
       app.abortController = null;
       app.stopped = true;
       if (app.typingEl) { app.typingEl.remove(); app.typingEl = null; }
-      app.renderBubble("assistant", "\u23F9\uFE0F Stopped");
       var queueEl = app.dom.messages.querySelector(".msg-row.queued, .msg-row.processing");
       if (queueEl) {
         queueEl.classList.add("stopped");
