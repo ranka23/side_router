@@ -558,7 +558,7 @@ body.dark .welcome-status.loading {
   max-width: 80%;
   display: flex;
   flex-direction: column;
-  padding: 8px 12px;
+  padding: 8px 12px 0 0;
 }
 .msg-row.assistant {
   align-self: flex-start;
