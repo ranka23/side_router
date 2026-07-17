@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SideRouter",
   "description": "AI chat powered by OpenRouter — sidebar, floating window, and tab modes",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "action": {
     "default_title": "SideRouter",
     "default_icon": {
